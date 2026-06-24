@@ -57,22 +57,34 @@ jobs:
           tagName: ${{ steps.tag.outputs.value }}
           releaseName: "YT Downloader ${{ steps.tag.outputs.value }}"
           releaseBody: |
-            ## YT Downloader ${{ steps.tag.outputs.value }}
+            <p align="center"><b>YT Downloader ${{ steps.tag.outputs.value }}</b></p>
 
-            Download videos & audio from YouTube, Vimeo, SoundCloud, and 1000+ other sites — fully offline.
+            A fast, offline desktop app for grabbing video and audio from **YouTube, Vimeo, SoundCloud, and [1000+ other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)**. No accounts, no cloud, no ads.
 
-            ### Install
-            1. Grab **`YT.Downloader_x64-setup.exe`** below.
-            2. Run it. Windows SmartScreen may warn (unsigned build) — **More info → Run anyway**.
-            3. `yt-dlp` and `ffmpeg` self-download on first launch. Nothing else to set up.
+            ## ⬇️ Download & install
+            1. Download **`YT.Downloader_x64-setup.exe`** from **Assets** below.
+            2. Run it. Windows SmartScreen may warn (the build is unsigned) → **More info → Run anyway**.
+            3. Launch the app. `yt-dlp` + `ffmpeg` download themselves on first run — nothing else to set up.
 
-            ### What's inside
-            - 🎥 Video up to 1080p · 🎵 MP3 audio · 📃 playlists
-            - ⚡ 3-at-a-time queue with live speed/ETA · ⏯️ real pause/resume/cancel
-            - 🕘 history · 💬 subtitles (burned-in or `.srt`)
+            > **Requirements:** Windows 10/11 (64-bit). ~10 MB installer; first launch fetches the downloader tools (~50 MB).
+
+            ## ✨ Highlights
+            | | |
+            |---|---|
+            | 🎥 **Video** | up to 1080p, or whatever the site offers |
+            | 🎵 **Audio** | one-click MP3 extraction |
+            | 📃 **Playlists** | fetch, cherry-pick, queue the whole thing |
+            | ⚡ **Queue** | 3 downloads at once, live speed + ETA |
+            | ⏯️ **Control** | pause / resume / cancel that truly kills the process |
+            | 🕘 **History** | remembers what you grabbed |
+            | 💬 **Subtitles** | burned into the MP4 or saved as `.srt` |
+
+            ## ⚠️ Known quirks
+            - **Instagram / X / private Vimeo** — log in via Chrome first; the app borrows your cookies.
+            - **Long videos pause on a purple bar** — that's ffmpeg merging, not a freeze. Let it finish.
 
             ---
-            <sub>Installer is under **Assets**. Tip: in the draft, click **Generate release notes** to append the commit changelog.</sub>
+            <sub>🔒 Open source · built with Tauri 2 + Rust + React. Tip: click **Generate release notes** in the draft to append the full commit changelog.</sub>
           releaseDraft: true # review notes before publishing; flip to false to auto-publish
           prerelease: false
           includeUpdaterJson: false
