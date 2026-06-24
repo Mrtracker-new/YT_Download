@@ -1,0 +1,78 @@
+name: Release
+
+# Push a version tag -> builds the Windows installer + portable exe and
+# publishes a GitHub Release with auto-generated notes + the binaries.
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# Or trigger manually from the Actions tab (workflow_dispatch).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write # needed to create the release + upload assets
+
+jobs:
+  build:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so release notes can diff from last tag
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: echo "value=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build + publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.tag.outputs.value }}
+          releaseName: "YT Downloader ${{ steps.tag.outputs.value }}"
+          releaseBody: |
+            ## YT Downloader ${{ steps.tag.outputs.value }}
+
+            Download videos & audio from YouTube, Vimeo, SoundCloud, and 1000+ other sites — fully offline.
+
+            ### Install
+            1. Grab **`YT.Downloader_x64-setup.exe`** below.
+            2. Run it. Windows SmartScreen may warn (unsigned build) — **More info → Run anyway**.
+            3. `yt-dlp` and `ffmpeg` self-download on first launch. Nothing else to set up.
+
+            ### What's inside
+            - 🎥 Video up to 1080p · 🎵 MP3 audio · 📃 playlists
+            - ⚡ 3-at-a-time queue with live speed/ETA · ⏯️ real pause/resume/cancel
+            - 🕘 history · 💬 subtitles (burned-in or `.srt`)
+
+            ---
+            <sub>Installer is under **Assets**. Tip: in the draft, click **Generate release notes** to append the commit changelog.</sub>
+          releaseDraft: true # review notes before publishing; flip to false to auto-publish
+          prerelease: false
+          includeUpdaterJson: false

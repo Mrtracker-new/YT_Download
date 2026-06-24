@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans antialiased bg-sketch-bg text-sketch-text;
+    /* Disable Tauri drag on text */
+    -webkit-user-drag: none;
+    user-select: none;
+    
+    /* Light paper pattern */
+    background-image: 
+      linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  body.dark-mode {
+    @apply bg-sketch-darkBg text-sketch-darkText;
+    /* Dark paper pattern */
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  }
+
+  /* Allow text selection in input fields and text areas */
+  input, textarea, [contenteditable] {
+    user-select: text;
+  }
+
+  /* Prevent image drag */
+  img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
+
+@layer components {
+  .wobbly-card {
+    @apply relative bg-white border-2 border-sketch-text;
+    border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+    box-shadow: 4px 4px 0 0 rgba(45,45,45,1);
+    transition: all 0.2s ease;
+  }
+  
+  .dark-mode .wobbly-card {
+    @apply bg-[#2e2e38] border-sketch-darkText;
+    box-shadow: 4px 4px 0 0 rgba(0,0,0,0.9);
+  }
+
+  .sketch-button {
+    @apply relative px-4 py-2 bg-sketch-accent text-white font-kalam font-bold text-lg border-2 border-sketch-text cursor-pointer;
+    border-radius: 15px 225px 15px 255px/255px 15px 225px 15px;
+    box-shadow: 4px 4px 0 0 rgba(45,45,45,1);
+    transition: all 0.1s ease;
+  }
+  
+  .dark-mode .sketch-button {
+    @apply border-sketch-darkText;
+    box-shadow: 4px 4px 0 0 rgba(0,0,0,0.8);
+  }
+
+  .sketch-button:hover:not(:disabled) {
+    transform: rotate(-1deg) translateY(-1px);
+    box-shadow: 5px 5px 0 0 rgba(45,45,45,1);
+  }
+
+  .dark-mode .sketch-button:hover:not(:disabled) {
+    box-shadow: 5px 5px 0 0 rgba(0,0,0,0.8);
+  }
+
+  .sketch-button:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 0 rgba(45,45,45,1);
+  }
+  
+  .dark-mode .sketch-button:active:not(:disabled) {
+    box-shadow: 1px 1px 0 0 rgba(0,0,0,0.8);
+  }
+
+  .sketch-button:disabled {
+    @apply bg-gray-400 cursor-not-allowed opacity-70;
+    transform: none;
+  }
+
+  .sticky-note {
+    @apply relative bg-[#feff9c] border border-[rgba(0,0,0,0.1)] p-3 text-sketch-text;
+    box-shadow: 3px 4px 5px rgba(0,0,0,0.2);
+    border-radius: 2px 2px 10px 2px;
+  }
+
+  .dark-mode .sticky-note {
+    @apply bg-[#424230] border-[rgba(255,255,255,0.1)] text-sketch-darkText;
+    box-shadow: 3px 4px 5px rgba(0,0,0,0.5);
+  }
+
+  .tape-decoration::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%) rotate(-3deg);
+    width: 60px;
+    height: 25px;
+    background-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    border: 1px solid rgba(0,0,0,0.05);
+    z-index: 10;
+    pointer-events: none;
+  }
+  
+  .dark-mode .tape-decoration::before {
+    background-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .thumbtack::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 30% 30%, #ff4d4d, #b30000);
+    border-radius: 50%;
+    box-shadow: 1px 2px 3px rgba(0,0,0,0.4);
+    z-index: 10;
+    pointer-events: none;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-slide-up { animation: slideUp 0.35s ease-out; }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
