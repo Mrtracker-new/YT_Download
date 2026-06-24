@@ -6,8 +6,8 @@ pub mod services;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use services::download_manager::DownloadManager;
 use database::Database;
+use services::download_manager::DownloadManager;
 
 pub struct AppState {
     pub db: Arc<Mutex<Database>>,

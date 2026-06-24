@@ -1,6 +1,6 @@
-use tauri::State;
-use serde::{Deserialize, Serialize};
 use crate::AppState;
+use serde::{Deserialize, Serialize};
+use tauri::State;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,10 +35,7 @@ pub async fn get_history(
 }
 
 #[tauri::command]
-pub async fn delete_history_item(
-    job_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn delete_history_item(job_id: String, state: State<'_, AppState>) -> Result<(), String> {
     let db = state.db.lock().await;
     db.delete_history_item(&job_id).map_err(|e| e.to_string())
 }

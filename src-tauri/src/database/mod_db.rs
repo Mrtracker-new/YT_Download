@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
-use std::path::PathBuf;
 use crate::commands::history::HistoryItem;
 use crate::commands::settings::AppSettings;
+use anyhow::{Context, Result};
+use rusqlite::{params, Connection};
+use std::path::PathBuf;
 
 pub struct Database {
     conn: Connection,
@@ -15,12 +15,10 @@ impl Database {
 
         // Ensure directory exists
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create app data directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create app data directory")?;
         }
 
-        let conn = Connection::open(&db_path)
-            .context("Failed to open database")?;
+        let conn = Connection::open(&db_path).context("Failed to open database")?;
 
         // Enable WAL mode for better concurrent access
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
@@ -38,7 +36,8 @@ impl Database {
     }
 
     fn run_migrations(&self) -> Result<()> {
-        self.conn.execute_batch("
+        self.conn.execute_batch(
+            "
             CREATE TABLE IF NOT EXISTS settings (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -63,14 +62,17 @@ impl Database {
             );
 
             CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at DESC);
-        ")?;
+        ",
+        )?;
         Ok(())
     }
 
     // ─── Settings ─────────────────────────────────────────────────────────────
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let mut stmt = self.conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM settings WHERE key = ?1")?;
         let result: rusqlite::Result<String> = stmt.query_row(params![key], |row| row.get(0));
         match result {
             Ok(v) => Ok(Some(v)),
@@ -92,17 +94,27 @@ impl Database {
         let mut settings = AppSettings::default();
 
         let keys = [
-            "downloadDir", "maxConcurrentDownloads", "fileNameTemplate",
-            "ytdlpPath", "ffmpegPath", "theme", "showNotifications",
-            "autoUpdateBinaries", "keepHistory", "historyRetentionDays",
-            "cookieBrowser", "cookieFile",
+            "downloadDir",
+            "maxConcurrentDownloads",
+            "fileNameTemplate",
+            "ytdlpPath",
+            "ffmpegPath",
+            "theme",
+            "showNotifications",
+            "autoUpdateBinaries",
+            "keepHistory",
+            "historyRetentionDays",
+            "cookieBrowser",
+            "cookieFile",
         ];
 
         for key in &keys {
             if let Ok(Some(value)) = self.get_setting(key) {
                 match *key {
                     "downloadDir" => settings.download_dir = value,
-                    "maxConcurrentDownloads" => settings.max_concurrent_downloads = value.parse().unwrap_or(2),
+                    "maxConcurrentDownloads" => {
+                        settings.max_concurrent_downloads = value.parse().unwrap_or(2)
+                    }
                     "fileNameTemplate" => settings.file_name_template = value,
                     "ytdlpPath" => settings.ytdlp_path = value,
                     "ffmpegPath" => settings.ffmpeg_path = value,
@@ -110,7 +122,9 @@ impl Database {
                     "showNotifications" => settings.show_notifications = value == "true",
                     "autoUpdateBinaries" => settings.auto_update_binaries = value == "true",
                     "keepHistory" => settings.keep_history = value != "false",
-                    "historyRetentionDays" => settings.history_retention_days = value.parse().unwrap_or(30),
+                    "historyRetentionDays" => {
+                        settings.history_retention_days = value.parse().unwrap_or(30)
+                    }
                     "cookieBrowser" => settings.cookie_browser = value,
                     "cookieFile" => settings.cookie_file = value,
                     _ => {}
@@ -123,15 +137,35 @@ impl Database {
 
     pub fn save_settings(&self, s: &AppSettings) -> Result<()> {
         self.set_setting("downloadDir", &s.download_dir)?;
-        self.set_setting("maxConcurrentDownloads", &s.max_concurrent_downloads.to_string())?;
+        self.set_setting(
+            "maxConcurrentDownloads",
+            &s.max_concurrent_downloads.to_string(),
+        )?;
         self.set_setting("fileNameTemplate", &s.file_name_template)?;
         self.set_setting("ytdlpPath", &s.ytdlp_path)?;
         self.set_setting("ffmpegPath", &s.ffmpeg_path)?;
         self.set_setting("theme", &s.theme)?;
-        self.set_setting("showNotifications", if s.show_notifications { "true" } else { "false" })?;
-        self.set_setting("autoUpdateBinaries", if s.auto_update_binaries { "true" } else { "false" })?;
+        self.set_setting(
+            "showNotifications",
+            if s.show_notifications {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
+        self.set_setting(
+            "autoUpdateBinaries",
+            if s.auto_update_binaries {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
         self.set_setting("keepHistory", if s.keep_history { "true" } else { "false" })?;
-        self.set_setting("historyRetentionDays", &s.history_retention_days.to_string())?;
+        self.set_setting(
+            "historyRetentionDays",
+            &s.history_retention_days.to_string(),
+        )?;
         self.set_setting("cookieBrowser", &s.cookie_browser)?;
         self.set_setting("cookieFile", &s.cookie_file)?;
         Ok(())
@@ -146,11 +180,20 @@ impl Database {
                  format, quality, audio_only, status, created_at, completed_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
             params![
-                item.job_id, item.url, item.title, item.uploader, item.thumbnail,
+                item.job_id,
+                item.url,
+                item.title,
+                item.uploader,
+                item.thumbnail,
                 item.duration.map(|d| d as i64),
-                item.file_path, item.file_size.map(|s| s as i64),
-                item.format, item.quality, item.audio_only as i32, item.status,
-                item.created_at, item.completed_at,
+                item.file_path,
+                item.file_size.map(|s| s as i64),
+                item.format,
+                item.quality,
+                item.audio_only as i32,
+                item.status,
+                item.created_at,
+                item.completed_at,
             ],
         )?;
         Ok(())
@@ -190,7 +233,8 @@ impl Database {
     }
 
     pub fn delete_history_item(&self, job_id: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM history WHERE job_id = ?1", params![job_id])?;
+        self.conn
+            .execute("DELETE FROM history WHERE job_id = ?1", params![job_id])?;
         Ok(())
     }
 

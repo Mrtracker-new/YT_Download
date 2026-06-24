@@ -1,4 +1,4 @@
 pub mod job;
 pub mod manager;
+pub use job::{DownloadJob, DownloadOptions, JobStatus};
 pub use manager::DownloadManager;
-pub use job::{DownloadJob, JobStatus, DownloadOptions};

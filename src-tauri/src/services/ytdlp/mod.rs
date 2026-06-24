@@ -1,3 +1,3 @@
-pub mod info;
 pub mod download;
+pub mod info;
 pub mod progress;

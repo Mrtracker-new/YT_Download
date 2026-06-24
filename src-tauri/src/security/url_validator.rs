@@ -73,9 +73,9 @@ pub fn validate_url(url: &str) -> Result<String> {
         .host_str()
         .ok_or_else(|| anyhow!("URL has no hostname"))?;
 
-    let is_allowed = ALLOWED_DOMAINS.iter().any(|&domain| {
-        host == domain || host.ends_with(&format!(".{}", domain))
-    });
+    let is_allowed = ALLOWED_DOMAINS
+        .iter()
+        .any(|&domain| host == domain || host.ends_with(&format!(".{}", domain)));
 
     if !is_allowed {
         return Err(anyhow!(

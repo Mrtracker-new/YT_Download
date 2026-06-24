@@ -4,7 +4,11 @@ use std::path::PathBuf;
 /// 1. App data bin directory
 /// 2. System PATH
 pub fn resolve_ytdlp() -> Option<String> {
-    let binary_name = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
+    let binary_name = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
 
     // Tier 1: App data dir
     if let Some(app_data) = get_app_bin_dir() {
@@ -15,12 +19,20 @@ pub fn resolve_ytdlp() -> Option<String> {
     }
 
     // Tier 2: System PATH
-    which_binary(if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" })
+    which_binary(if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    })
 }
 
 /// Resolve ffmpeg binary path.
 pub fn resolve_ffmpeg() -> Option<String> {
-    let binary_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    let binary_name = if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
 
     // Tier 1: App data dir
     if let Some(app_data) = get_app_bin_dir() {
@@ -57,7 +69,11 @@ fn which_binary(name: &str) -> Option<String> {
             .unwrap_or("")
             .trim()
             .to_string();
-        if !path.is_empty() { Some(path) } else { None }
+        if !path.is_empty() {
+            Some(path)
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -65,14 +81,15 @@ fn which_binary(name: &str) -> Option<String> {
 
 /// Get the version string of a binary by running it with version flags.
 pub fn get_binary_version(path: &str, args: &[&str]) -> Option<String> {
-    let output = std::process::Command::new(path)
-        .args(args)
-        .output()
-        .ok()?;
+    let output = std::process::Command::new(path).args(args).output().ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
     let version = if !stdout.is_empty() { stdout } else { stderr };
-    if version.is_empty() { None } else { Some(version) }
+    if version.is_empty() {
+        None
+    } else {
+        Some(version)
+    }
 }

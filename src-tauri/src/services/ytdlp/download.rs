@@ -1,15 +1,15 @@
 use anyhow::{anyhow, Result};
+use serde::Serialize;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex as StdMutex};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::watch;
-use tauri::{AppHandle, Emitter};
-use serde::Serialize;
 
-use crate::services::binary_resolver::{resolve_ytdlp, resolve_ffmpeg};
-use crate::services::ytdlp::progress::{parse_progress_line, ProcessingStatus};
+use crate::services::binary_resolver::{resolve_ffmpeg, resolve_ytdlp};
 use crate::services::download_manager::job::ControlSignal;
+use crate::services::ytdlp::progress::{parse_progress_line, ProcessingStatus};
 
 // ─── Event Payloads ────────────────────────────────────────────────────────────
 
@@ -114,8 +114,8 @@ pub async fn run_download(
     app_handle: AppHandle,
     control_rx: watch::Receiver<ControlSignal>,
 ) -> Result<String> {
-    let ytdlp = resolve_ytdlp()
-        .ok_or_else(|| anyhow!("yt-dlp not found. Please go to Settings."))?;
+    let ytdlp =
+        resolve_ytdlp().ok_or_else(|| anyhow!("yt-dlp not found. Please go to Settings."))?;
     let ffmpeg = resolve_ffmpeg();
 
     let mut cmd_args: Vec<String> = Vec::new();
@@ -124,8 +124,10 @@ pub async fn run_download(
     if args.audio_only {
         cmd_args.extend([
             "-x".to_string(),
-            "--audio-format".to_string(), "mp3".to_string(),
-            "--audio-quality".to_string(), "0".to_string(),
+            "--audio-format".to_string(),
+            "mp3".to_string(),
+            "--audio-quality".to_string(),
+            "0".to_string(),
         ]);
     } else {
         let quality_height = args.quality.replace('p', "");
@@ -148,7 +150,8 @@ pub async fn run_download(
         }
         cmd_args.extend([
             "--write-subs".to_string(),
-            "--sub-lang".to_string(), args.subtitle_language.clone(),
+            "--sub-lang".to_string(),
+            args.subtitle_language.clone(),
         ]);
         if args.subtitle_mode == "embed" {
             cmd_args.push("--embed-subs".to_string());
@@ -174,15 +177,21 @@ pub async fn run_download(
     cmd_args.extend([
         "--newline".to_string(),
         "--progress".to_string(),
-        "--concurrent-fragments".to_string(), "4".to_string(),
-        "--buffer-size".to_string(), "16K".to_string(),
+        "--concurrent-fragments".to_string(),
+        "4".to_string(),
+        "--buffer-size".to_string(),
+        "16K".to_string(),
         "--no-warnings".to_string(),
         "--no-check-certificates".to_string(),
-        "--retries".to_string(), "5".to_string(),
-        "--fragment-retries".to_string(), "5".to_string(),
-        "--file-access-retries".to_string(), "3".to_string(),
+        "--retries".to_string(),
+        "5".to_string(),
+        "--fragment-retries".to_string(),
+        "5".to_string(),
+        "--file-access-retries".to_string(),
+        "3".to_string(),
         "--geo-bypass".to_string(),
-        "--socket-timeout".to_string(), "30".to_string(),
+        "--socket-timeout".to_string(),
+        "30".to_string(),
         "--add-metadata".to_string(),
         "--no-playlist".to_string(),
         // NOTE: no --continue here. Resuming with --continue on corrupted partial
@@ -194,9 +203,7 @@ pub async fn run_download(
     // A cookies.txt file is the bulletproof path: works for any site and sidesteps
     // Windows browser-cookie decryption failures (Chrome/Edge App-Bound Encryption).
     if args.has_cookie_file() {
-        cmd_args.extend([
-            "--cookies".to_string(), args.cookie_file.trim().to_string(),
-        ]);
+        cmd_args.extend(["--cookies".to_string(), args.cookie_file.trim().to_string()]);
     }
 
     // ── Platform-specific flags ────────────────────────────────────────────────
@@ -207,33 +214,43 @@ pub async fn run_download(
 
     if url_host.contains("vimeo") {
         cmd_args.extend([
-            "--add-header".to_string(), "Referer:https://vimeo.com/".to_string(),
-            "--add-header".to_string(), "Origin:https://vimeo.com".to_string(),
+            "--add-header".to_string(),
+            "Referer:https://vimeo.com/".to_string(),
+            "--add-header".to_string(),
+            "Origin:https://vimeo.com".to_string(),
         ]);
     } else if url_host.contains("instagram") {
         // Referer always helps; cookies only when a browser is explicitly configured.
         // Empty = no cookies → public reels/posts download fine and avoid DPAPI decrypt errors.
         cmd_args.extend([
-            "--add-header".to_string(), "Referer:https://www.instagram.com/".to_string(),
+            "--add-header".to_string(),
+            "Referer:https://www.instagram.com/".to_string(),
         ]);
         // Browser cookies only when no cookies.txt file is set (file already added above).
         if !args.has_cookie_file() && args.has_cookie_browser() {
             cmd_args.extend([
-                "--cookies-from-browser".to_string(), args.cookie_browser.clone(),
+                "--cookies-from-browser".to_string(),
+                args.cookie_browser.clone(),
             ]);
         }
-    } else if url_host.contains("twitter") || url_host.contains("x.com") {
-        if !args.has_cookie_file() && args.has_cookie_browser() {
-            cmd_args.extend([
-                "--cookies-from-browser".to_string(), args.cookie_browser.clone(),
-            ]);
-        }
+    } else if (url_host.contains("twitter") || url_host.contains("x.com"))
+        && !args.has_cookie_file()
+        && args.has_cookie_browser()
+    {
+        cmd_args.extend([
+            "--cookies-from-browser".to_string(),
+            args.cookie_browser.clone(),
+        ]);
     }
 
     // ── URL (always last) ──────────────────────────────────────────────────────
     cmd_args.push(args.url.clone());
 
-    log::info!("yt-dlp job {} starting ({} args)", args.job_id, cmd_args.len());
+    log::info!(
+        "yt-dlp job {} starting ({} args)",
+        args.job_id,
+        cmd_args.len()
+    );
 
     // ── Spawn yt-dlp ──────────────────────────────────────────────────────────
     // On Windows: set CREATE_NO_WINDOW so yt-dlp/ffmpeg run silently.
@@ -346,7 +363,7 @@ pub async fn run_download(
     // On Windows: wrap the raw HANDLE in a thread-safe newtype.
     // On non-Windows: the Option<()> handle is already trivially Send.
     #[cfg(windows)]
-    let watcher_job_handle = job_object_handle.map(|h| SendableHandle(h));
+    let watcher_job_handle = job_object_handle.map(SendableHandle);
     #[cfg(not(windows))]
     let watcher_job_handle = job_object_handle;
 
@@ -364,23 +381,33 @@ pub async fn run_download(
             match signal {
                 ControlSignal::Run => continue, // spurious wakeup, keep waiting
                 ControlSignal::Pause => {
-                    log::info!("Job {} received Pause signal — terminating process tree", jid_for_watcher);
+                    log::info!(
+                        "Job {} received Pause signal — terminating process tree",
+                        jid_for_watcher
+                    );
                     kill_process_tree(child_pid, watcher_job_handle);
                     // Emit paused event from inside the watcher so it happens
                     // AFTER the process is dead — no race with progress events.
                     let _ = app_for_watcher.emit(
                         "download://paused",
-                        PausedEventPayload { job_id: jid_for_watcher.clone() },
+                        PausedEventPayload {
+                            job_id: jid_for_watcher.clone(),
+                        },
                     );
                     break;
                 }
                 ControlSignal::Cancel => {
-                    log::info!("Job {} received Cancel signal — terminating process tree", jid_for_watcher);
+                    log::info!(
+                        "Job {} received Cancel signal — terminating process tree",
+                        jid_for_watcher
+                    );
                     kill_process_tree(child_pid, watcher_job_handle);
                     cleanup_temp_files(&output_dir_for_watcher);
                     let _ = app_for_watcher.emit(
                         "download://cancelled",
-                        CancelledEventPayload { job_id: jid_for_watcher.clone() },
+                        CancelledEventPayload {
+                            job_id: jid_for_watcher.clone(),
+                        },
                     );
                     break;
                 }
@@ -389,7 +416,9 @@ pub async fn run_download(
     });
 
     // Wait for process to finish (may be killed by the control watcher)
-    let status = child.wait().await
+    let status = child
+        .wait()
+        .await
         .map_err(|e| anyhow!("Failed to wait for yt-dlp: {}", e))?;
 
     // Shut down helper tasks cleanly
@@ -414,12 +443,15 @@ pub async fn run_download(
     }
 
     if !status.success() {
-        let error_lines: Vec<_> = stderr_lines.iter()
+        let error_lines: Vec<_> = stderr_lines
+            .iter()
             .filter(|l| l.to_lowercase().contains("error"))
             .cloned()
             .collect();
         let msg = if error_lines.is_empty() {
-            stderr_lines.last().cloned()
+            stderr_lines
+                .last()
+                .cloned()
                 .unwrap_or_else(|| "Download failed (unknown error)".to_string())
         } else {
             error_lines.join("; ")
@@ -458,12 +490,11 @@ unsafe impl Send for SendableHandle {}
 fn create_job_object_for_pid(pid: Option<u32>) -> Option<windows::Win32::Foundation::HANDLE> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::JobObjects::{
-        CreateJobObjectW, AssignProcessToJobObject,
-        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_TERMINATE, PROCESS_SET_QUOTA, PROCESS_QUERY_INFORMATION,
+        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
     };
 
     let pid = pid?;
@@ -572,14 +603,20 @@ fn cleanup_temp_files(output_dir: &str) {
     if let Ok(entries) = std::fs::read_dir(path) {
         for entry in entries.flatten() {
             let p = entry.path();
-            if !p.is_file() { continue; }
+            if !p.is_file() {
+                continue;
+            }
 
-            let ext = p.extension().and_then(|e| e.to_str())
+            let ext = p
+                .extension()
+                .and_then(|e| e.to_str())
                 .map(|e| e.to_lowercase())
                 .unwrap_or_default();
             let name = p.to_string_lossy().to_lowercase();
 
-            if ext == "part" || ext == "ytdl" || ext == "temp"
+            if ext == "part"
+                || ext == "ytdl"
+                || ext == "temp"
                 || name.ends_with(".ytdl")
                 || is_ytdlp_stream_fragment(&p)
             {
@@ -610,18 +647,24 @@ fn is_ytdlp_stream_fragment(path: &std::path::Path) -> bool {
 fn extract_destination(line: &str) -> Option<String> {
     if let Some(rest) = line.strip_prefix("[download] Destination: ") {
         let p = rest.trim().to_string();
-        if !p.is_empty() { return Some(p); }
+        if !p.is_empty() {
+            return Some(p);
+        }
     }
     if line.contains("] Destination: ") {
         if let Some(pos) = line.find("] Destination: ") {
             let p = line[pos + 15..].trim().to_string();
-            if !p.is_empty() { return Some(p); }
+            if !p.is_empty() {
+                return Some(p);
+            }
         }
     }
     if line.contains("Merging formats into ") {
         if let Some(pos) = line.find("Merging formats into ") {
             let raw = line[pos + 21..].trim().trim_matches('"').to_string();
-            if !raw.is_empty() { return Some(raw); }
+            if !raw.is_empty() {
+                return Some(raw);
+            }
         }
     }
     None
@@ -633,23 +676,41 @@ fn find_most_recent_media_file(dir: &str) -> Result<String> {
     if !path.exists() {
         return Err(anyhow!("Output directory does not exist: {}", dir));
     }
-    let media_exts = ["mp4", "mkv", "webm", "mp3", "m4a", "ogg", "opus", "flac", "wav", "avi", "mov"];
+    let media_exts = [
+        "mp4", "mkv", "webm", "mp3", "m4a", "ogg", "opus", "flac", "wav", "avi", "mov",
+    ];
     let mut best: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
     for entry in std::fs::read_dir(path).map_err(|e| anyhow!("Cannot read output dir: {}", e))? {
         let entry = entry?;
         let p = entry.path();
-        if !p.is_file() { continue; }
-        let ext = p.extension().and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase()).unwrap_or_default();
-        if !media_exts.contains(&ext.as_str()) { continue; }
-        if is_ytdlp_stream_fragment(&p) { continue; }
+        if !p.is_file() {
+            continue;
+        }
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        if !media_exts.contains(&ext.as_str()) {
+            continue;
+        }
+        if is_ytdlp_stream_fragment(&p) {
+            continue;
+        }
         if let Ok(meta) = entry.metadata() {
             if let Ok(modified) = meta.modified() {
-                let is_newer = best.as_ref().map_or(true, |(t, _)| modified > *t);
-                if is_newer { best = Some((modified, p)); }
+                let is_newer = best.as_ref().is_none_or(|(t, _)| modified > *t);
+                if is_newer {
+                    best = Some((modified, p));
+                }
             }
         }
     }
     best.map(|(_, p)| p.to_string_lossy().to_string())
-        .ok_or_else(|| anyhow!("No output file found in {}. The download may have failed silently.", dir))
+        .ok_or_else(|| {
+            anyhow!(
+                "No output file found in {}. The download may have failed silently.",
+                dir
+            )
+        })
 }

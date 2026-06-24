@@ -49,7 +49,10 @@ impl JobStatus {
     }
 
     pub fn is_active(&self) -> bool {
-        matches!(self, Self::Downloading | Self::Merging | Self::Converting | Self::Finalizing)
+        matches!(
+            self,
+            Self::Downloading | Self::Merging | Self::Converting | Self::Finalizing
+        )
     }
 }
 
@@ -106,7 +109,11 @@ pub struct DownloadJob {
 
 impl DownloadJob {
     pub fn new(opts: DownloadOptions) -> Self {
-        let format = if opts.audio_only { "mp3".to_string() } else { "mp4".to_string() };
+        let format = if opts.audio_only {
+            "mp3".to_string()
+        } else {
+            "mp4".to_string()
+        };
         let now = chrono::Utc::now().timestamp_millis();
         // Dummy channel — replaced by a live channel each time start_job() is called.
         // The initial value is Run so receivers see no signal until the manager acts.

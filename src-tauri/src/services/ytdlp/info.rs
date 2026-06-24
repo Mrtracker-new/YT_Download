@@ -1,10 +1,10 @@
+use crate::commands::video::{PlaylistInfo, PlaylistItem, SubtitleTrack, VideoFormat, VideoInfo};
+use crate::services::binary_resolver::resolve_ytdlp;
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::process::Command;
-use crate::services::binary_resolver::resolve_ytdlp;
-use crate::commands::video::{VideoInfo, VideoFormat, SubtitleTrack, PlaylistInfo, PlaylistItem};
 
 /// Raw yt-dlp JSON output structure
 #[derive(Debug, Deserialize)]
@@ -78,9 +78,12 @@ pub async fn fetch_video_info(url: &str) -> Result<VideoInfo> {
         "--no-check-certificates".to_string(),
         "--skip-download".to_string(),
         "--no-playlist".to_string(),
-        "--socket-timeout".to_string(), "15".to_string(),
-        "--retries".to_string(), "2".to_string(),
-        "--extractor-retries".to_string(), "1".to_string(),
+        "--socket-timeout".to_string(),
+        "15".to_string(),
+        "--retries".to_string(),
+        "2".to_string(),
+        "--extractor-retries".to_string(),
+        "1".to_string(),
         "--no-check-formats".to_string(),
         "--geo-bypass".to_string(),
         url.to_string(),
@@ -124,17 +127,21 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
         .ok()
         .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
         .unwrap_or_default();
-    let ytdlp = resolve_ytdlp().ok_or_else(|| anyhow!("yt-dlp not found. Please go to Settings to download it."))?;
+    let ytdlp = resolve_ytdlp()
+        .ok_or_else(|| anyhow!("yt-dlp not found. Please go to Settings to download it."))?;
 
     let output = Command::new(&ytdlp)
-        .args(&[
-            "--dump-single-json",      // Single JSON object for the whole playlist
-            "--flat-playlist",         // Don't fetch full info for each entry (fast)
+        .args([
+            "--dump-single-json", // Single JSON object for the whole playlist
+            "--flat-playlist",    // Don't fetch full info for each entry (fast)
             "--no-warnings",
             "--no-check-certificates",
-            "--socket-timeout", "30",
-            "--retries", "3",
-            "--extractor-retries", "2",
+            "--socket-timeout",
+            "30",
+            "--retries",
+            "3",
+            "--extractor-retries",
+            "2",
             "--geo-bypass",
             url,
         ])
@@ -155,7 +162,14 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
             .lines()
             .find(|l| l.contains("ERROR") || l.contains("error") || l.contains("Unable"))
             .unwrap_or(stderr.trim());
-        return Err(anyhow!("{}", if error_line.is_empty() { "yt-dlp failed with no output" } else { error_line }));
+        return Err(anyhow!(
+            "{}",
+            if error_line.is_empty() {
+                "yt-dlp failed with no output"
+            } else {
+                error_line
+            }
+        ));
     }
 
     if stdout.trim().is_empty() {
@@ -166,17 +180,21 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
     }
 
     // Parse the single JSON object
-    let raw: YtDlpRawInfo = serde_json::from_str(stdout.trim())
-        .map_err(|e| anyhow!(
+    let raw: YtDlpRawInfo = serde_json::from_str(stdout.trim()).map_err(|e| {
+        anyhow!(
             "Failed to parse yt-dlp playlist output: {}.\nFirst 200 chars: {}",
             e,
             &stdout[..stdout.len().min(200)]
-        ))?;
+        )
+    })?;
 
     // Extract playlist-level metadata BEFORE consuming raw.entries (Rust ownership)
     let playlist_id = raw.id.unwrap_or_default();
     let playlist_title = raw.title.unwrap_or_else(|| "Unknown Playlist".to_string());
-    let playlist_uploader = raw.uploader.or(raw.channel).unwrap_or_else(|| "Unknown".to_string());
+    let playlist_uploader = raw
+        .uploader
+        .or(raw.channel)
+        .unwrap_or_else(|| "Unknown".to_string());
     let playlist_thumbnail = raw.thumbnail;
     let entries_raw = raw.entries.unwrap_or_default();
 
@@ -197,7 +215,9 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
             // NEVER fall back to a YouTube URL for non-YouTube content — that causes
             // yt-dlp to invoke the YouTube extractor on a Vimeo/other numeric ID,
             // producing "Incomplete YouTube ID" errors.
-            let video_url = e.webpage_url.clone()
+            let video_url = e
+                .webpage_url
+                .clone()
                 .or_else(|| e.url.clone())
                 .filter(|u| !u.is_empty() && u.starts_with("http"));
 
@@ -211,12 +231,16 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
 
             Some(PlaylistItem {
                 id,
-                title: e.title.clone().unwrap_or_else(|| "[Unavailable]".to_string()),
+                title: e
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| "[Unavailable]".to_string()),
                 url: video_url,
                 duration: e.duration.map(|d| d as u64),
                 thumbnail: e.thumbnail.clone().or_else(|| {
                     // Flat playlist entries provide thumbnails[] array, not thumbnail string
-                    e.thumbnails.as_ref()
+                    e.thumbnails
+                        .as_ref()
                         .and_then(|ts| ts.last())
                         .and_then(|t| t.url.clone())
                 }),
@@ -270,17 +294,25 @@ fn parse_video_info(raw: YtDlpRawInfo) -> Result<VideoInfo> {
     let id = raw.id.ok_or_else(|| anyhow!("Missing video ID"))?;
     let title = raw.title.ok_or_else(|| anyhow!("Missing video title"))?;
 
-    let formats: Vec<VideoFormat> = raw.formats.unwrap_or_default().into_iter().map(|f| VideoFormat {
-        format_id: f.format_id.unwrap_or_default(),
-        ext: f.ext.unwrap_or_default(),
-        quality: f.height.map(|h| format!("{}p", h)).unwrap_or_else(|| "unknown".to_string()),
-        filesize: f.filesize,
-        vcodec: f.vcodec,
-        acodec: f.acodec,
-        height: f.height,
-        width: f.width,
-        tbr: f.tbr,
-    }).collect();
+    let formats: Vec<VideoFormat> = raw
+        .formats
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| VideoFormat {
+            format_id: f.format_id.unwrap_or_default(),
+            ext: f.ext.unwrap_or_default(),
+            quality: f
+                .height
+                .map(|h| format!("{}p", h))
+                .unwrap_or_else(|| "unknown".to_string()),
+            filesize: f.filesize,
+            vcodec: f.vcodec,
+            acodec: f.acodec,
+            height: f.height,
+            width: f.width,
+            tbr: f.tbr,
+        })
+        .collect();
 
     // Collect unique available qualities with video codec
     let mut seen_heights = std::collections::HashSet::new();
@@ -288,7 +320,9 @@ fn parse_video_info(raw: YtDlpRawInfo) -> Result<VideoInfo> {
         .iter()
         .filter(|f| {
             f.height.is_some()
-                && f.vcodec.as_deref().map_or(false, |v| v != "none" && !v.is_empty())
+                && f.vcodec
+                    .as_deref()
+                    .is_some_and(|v| v != "none" && !v.is_empty())
         })
         .filter_map(|f| f.height.map(|h| format!("{}p", h)))
         .filter(|q| seen_heights.insert(q.clone()))
@@ -301,26 +335,36 @@ fn parse_video_info(raw: YtDlpRawInfo) -> Result<VideoInfo> {
         bn.cmp(&an)
     });
 
-    let subtitles: HashMap<String, Vec<SubtitleTrack>> = raw.subtitles.unwrap_or_default()
+    let subtitles: HashMap<String, Vec<SubtitleTrack>> = raw
+        .subtitles
+        .unwrap_or_default()
         .into_iter()
         .map(|(lang, tracks)| {
-            let converted = tracks.into_iter().map(|t| SubtitleTrack {
-                ext: t.ext.unwrap_or_default(),
-                url: t.url,
-                name: t.name,
-            }).collect();
+            let converted = tracks
+                .into_iter()
+                .map(|t| SubtitleTrack {
+                    ext: t.ext.unwrap_or_default(),
+                    url: t.url,
+                    name: t.name,
+                })
+                .collect();
             (lang, converted)
         })
         .collect();
 
-    let automatic_captions: HashMap<String, Vec<SubtitleTrack>> = raw.automatic_captions.unwrap_or_default()
+    let automatic_captions: HashMap<String, Vec<SubtitleTrack>> = raw
+        .automatic_captions
+        .unwrap_or_default()
         .into_iter()
         .map(|(lang, tracks)| {
-            let converted = tracks.into_iter().map(|t| SubtitleTrack {
-                ext: t.ext.unwrap_or_default(),
-                url: t.url,
-                name: t.name,
-            }).collect();
+            let converted = tracks
+                .into_iter()
+                .map(|t| SubtitleTrack {
+                    ext: t.ext.unwrap_or_default(),
+                    url: t.url,
+                    name: t.name,
+                })
+                .collect();
             (lang, converted)
         })
         .collect();
@@ -328,7 +372,10 @@ fn parse_video_info(raw: YtDlpRawInfo) -> Result<VideoInfo> {
     Ok(VideoInfo {
         video_id: id,
         title,
-        uploader: raw.uploader.or(raw.channel).unwrap_or_else(|| "Unknown".to_string()),
+        uploader: raw
+            .uploader
+            .or(raw.channel)
+            .unwrap_or_else(|| "Unknown".to_string()),
         duration: raw.duration.map(|d| d as u64).unwrap_or(0),
         thumbnail: raw.thumbnail.unwrap_or_default(),
         description: raw.description.unwrap_or_default(),

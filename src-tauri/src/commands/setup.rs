@@ -1,7 +1,7 @@
-use tauri::{AppHandle, Emitter};
-use serde::Serialize;
 use futures_util::StreamExt;
+use serde::Serialize;
 use std::io::Write;
+use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,18 +23,21 @@ pub struct BinaryCheckResult {
 }
 
 fn emit_progress(app: &AppHandle, name: &str, progress: f64, status: &str, message: &str) {
-    let _ = app.emit("setup://progress", SetupProgress {
-        name: name.to_string(),
-        progress,
-        status: status.to_string(),
-        message: message.to_string(),
-    });
+    let _ = app.emit(
+        "setup://progress",
+        SetupProgress {
+            name: name.to_string(),
+            progress,
+            status: status.to_string(),
+            message: message.to_string(),
+        },
+    );
 }
 
 /// Check which binaries are available without downloading anything.
 #[tauri::command]
 pub async fn check_setup() -> Result<BinaryCheckResult, String> {
-    use crate::services::binary_resolver::{resolve_ytdlp, resolve_ffmpeg};
+    use crate::services::binary_resolver::{resolve_ffmpeg, resolve_ytdlp};
     let ytdlp = resolve_ytdlp();
     let ffmpeg = resolve_ffmpeg();
     let needs_setup = ytdlp.is_none();
@@ -52,10 +55,14 @@ pub async fn check_setup() -> Result<BinaryCheckResult, String> {
 pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
     use crate::services::binary_resolver::get_app_bin_dir;
 
-    let bin_dir = get_app_bin_dir()
-        .ok_or_else(|| "Cannot determine app data directory".to_string())?;
+    let bin_dir =
+        get_app_bin_dir().ok_or_else(|| "Cannot determine app data directory".to_string())?;
 
-    let binary_name = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
+    let binary_name = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
     let dest = bin_dir.join(binary_name);
 
     // Use different URL for different platforms
@@ -67,7 +74,13 @@ pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     };
 
-    emit_progress(&app_handle, "yt-dlp", 0.0, "downloading", "Starting download...");
+    emit_progress(
+        &app_handle,
+        "yt-dlp",
+        0.0,
+        "downloading",
+        "Starting download...",
+    );
 
     let client = reqwest::Client::builder()
         .user_agent("YT-Downloader-Tauri/1.0")
@@ -75,9 +88,11 @@ pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(url).send().await.map_err(|e| {
-        format!("Network error: {}. Check your internet connection.", e)
-    })?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}. Check your internet connection.", e))?;
 
     if !response.status().is_success() {
         return Err(format!("Download failed: HTTP {}", response.status()));
@@ -86,15 +101,15 @@ pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
     let total = response.content_length().unwrap_or(0);
     let mut stream = response.bytes_stream();
 
-    let mut file = std::fs::File::create(&dest).map_err(|e| {
-        format!("Cannot create file at {:?}: {}", dest, e)
-    })?;
+    let mut file = std::fs::File::create(&dest)
+        .map_err(|e| format!("Cannot create file at {:?}: {}", dest, e))?;
 
     let mut downloaded: u64 = 0;
 
     while let Some(chunk_result) = stream.next().await {
         let chunk = chunk_result.map_err(|e| format!("Download interrupted: {}", e))?;
-        file.write_all(&chunk).map_err(|e| format!("Write error: {}", e))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("Write error: {}", e))?;
         downloaded += chunk.len() as u64;
 
         if total > 0 {
@@ -122,7 +137,13 @@ pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
         }
     }
 
-    emit_progress(&app_handle, "yt-dlp", 100.0, "complete", "yt-dlp downloaded successfully!");
+    emit_progress(
+        &app_handle,
+        "yt-dlp",
+        100.0,
+        "complete",
+        "yt-dlp downloaded successfully!",
+    );
 
     Ok(dest.to_string_lossy().to_string())
 }
@@ -132,10 +153,16 @@ pub async fn download_ytdlp(app_handle: AppHandle) -> Result<String, String> {
 pub async fn download_ffmpeg(app_handle: AppHandle) -> Result<String, String> {
     use crate::services::binary_resolver::get_app_bin_dir;
 
-    let bin_dir = get_app_bin_dir()
-        .ok_or_else(|| "Cannot determine app data directory".to_string())?;
+    let bin_dir =
+        get_app_bin_dir().ok_or_else(|| "Cannot determine app data directory".to_string())?;
 
-    emit_progress(&app_handle, "ffmpeg", 0.0, "downloading", "Starting ffmpeg download...");
+    emit_progress(
+        &app_handle,
+        "ffmpeg",
+        0.0,
+        "downloading",
+        "Starting ffmpeg download...",
+    );
 
     // Use a smaller, pre-built ffmpeg binary from GitHub
     // yt-dlp provides a bundled ffmpeg build
@@ -150,16 +177,25 @@ pub async fn download_ffmpeg(app_handle: AppHandle) -> Result<String, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(url).send().await.map_err(|e| {
-        format!("Network error downloading ffmpeg: {}", e)
-    })?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Network error downloading ffmpeg: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("ffmpeg download failed: HTTP {}", response.status()));
+        return Err(format!(
+            "ffmpeg download failed: HTTP {}",
+            response.status()
+        ));
     }
 
     let total = response.content_length().unwrap_or(0);
-    let archive_path = bin_dir.join(if cfg!(windows) { "ffmpeg.zip" } else { "ffmpeg.tar.xz" });
+    let archive_path = bin_dir.join(if cfg!(windows) {
+        "ffmpeg.zip"
+    } else {
+        "ffmpeg.tar.xz"
+    });
 
     let mut stream = response.bytes_stream();
     let mut file = std::fs::File::create(&archive_path).map_err(|e| e.to_string())?;
@@ -184,7 +220,13 @@ pub async fn download_ffmpeg(app_handle: AppHandle) -> Result<String, String> {
         }
     }
 
-    emit_progress(&app_handle, "ffmpeg", 91.0, "extracting", "Extracting ffmpeg...");
+    emit_progress(
+        &app_handle,
+        "ffmpeg",
+        91.0,
+        "extracting",
+        "Extracting ffmpeg...",
+    );
 
     // Extract ffmpeg.exe from the zip
     #[cfg(windows)]
@@ -206,16 +248,29 @@ pub async fn download_ffmpeg(app_handle: AppHandle) -> Result<String, String> {
     // Clean up archive
     let _ = std::fs::remove_file(&archive_path);
 
-    let binary_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    let binary_name = if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
     let ffmpeg_path = bin_dir.join(binary_name);
 
-    emit_progress(&app_handle, "ffmpeg", 100.0, "complete", "ffmpeg downloaded successfully!");
+    emit_progress(
+        &app_handle,
+        "ffmpeg",
+        100.0,
+        "complete",
+        "ffmpeg downloaded successfully!",
+    );
 
     Ok(ffmpeg_path.to_string_lossy().to_string())
 }
 
 #[cfg(windows)]
-fn extract_ffmpeg_windows(archive_path: &std::path::Path, dest_dir: &std::path::Path) -> Result<(), String> {
+fn extract_ffmpeg_windows(
+    archive_path: &std::path::Path,
+    dest_dir: &std::path::Path,
+) -> Result<(), String> {
     let file = std::fs::File::open(archive_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
 
@@ -235,9 +290,18 @@ fn extract_ffmpeg_windows(archive_path: &std::path::Path, dest_dir: &std::path::
 }
 
 #[cfg(unix)]
-fn extract_ffmpeg_unix(archive_path: &std::path::Path, dest_dir: &std::path::Path) -> Result<(), String> {
+fn extract_ffmpeg_unix(
+    archive_path: &std::path::Path,
+    dest_dir: &std::path::Path,
+) -> Result<(), String> {
     let output = std::process::Command::new("tar")
-        .args(["-xf", archive_path.to_str().unwrap_or(""), "--wildcards", "*/bin/ffmpeg", "-O"])
+        .args([
+            "-xf",
+            archive_path.to_str().unwrap_or(""),
+            "--wildcards",
+            "*/bin/ffmpeg",
+            "-O",
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 

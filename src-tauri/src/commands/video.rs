@@ -1,9 +1,9 @@
-use tauri::State;
-use serde::{Deserialize, Serialize};
-use anyhow::Result;
-use crate::AppState;
-use crate::services::ytdlp::info::{fetch_video_info, fetch_playlist_info};
 use crate::security::url_validator::validate_url;
+use crate::services::ytdlp::info::{fetch_playlist_info, fetch_video_info};
+use crate::AppState;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use tauri::State;
 
 // ─── Types mirroring the frontend TypeScript types ────────────────────────────
 
@@ -83,10 +83,7 @@ pub struct PlaylistInfo {
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn get_video_info(
-    url: String,
-    _state: State<'_, AppState>,
-) -> Result<VideoInfo, String> {
+pub async fn get_video_info(url: String, _state: State<'_, AppState>) -> Result<VideoInfo, String> {
     // Validate URL first (security)
     let validated_url = validate_url(&url).map_err(|e| e.to_string())?;
 
@@ -114,7 +111,10 @@ pub async fn get_subtitle_langs(
         .iter()
         .map(|(code, tracks)| SubtitleLanguageEntry {
             code: code.clone(),
-            name: tracks.first().and_then(|t| t.name.clone()).unwrap_or_else(|| code.clone()),
+            name: tracks
+                .first()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_else(|| code.clone()),
         })
         .collect();
 
@@ -124,7 +124,10 @@ pub async fn get_subtitle_langs(
         .filter(|(code, _)| !info.subtitles.contains_key(*code))
         .map(|(code, tracks)| SubtitleLanguageEntry {
             code: code.clone(),
-            name: tracks.first().and_then(|t| t.name.clone()).unwrap_or_else(|| code.clone()),
+            name: tracks
+                .first()
+                .and_then(|t| t.name.clone())
+                .unwrap_or_else(|| code.clone()),
         })
         .collect();
 

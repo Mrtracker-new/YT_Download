@@ -34,7 +34,7 @@ const SettingsPage: React.FC = () => {
     try {
       const status = await checkBinaries();
       setBinaryStatus(status);
-    } catch (err) {
+    } catch {
       toast.error('Failed to check binaries');
     } finally {
       setCheckingBinaries(false);
@@ -69,7 +69,7 @@ const SettingsPage: React.FC = () => {
     try {
       await save(local);
       toast.success('Settings saved!');
-    } catch (err) {
+    } catch {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);

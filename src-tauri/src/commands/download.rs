@@ -1,9 +1,9 @@
-use tauri::{State, AppHandle};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use crate::AppState;
 use crate::security::url_validator::validate_url;
-use crate::services::download_manager::{DownloadOptions};
+use crate::services::download_manager::DownloadOptions;
+use crate::AppState;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, State};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +88,13 @@ pub async fn start_download(
     let output_dir = opts
         .output_dir
         .filter(|d| !d.is_empty())
-        .or_else(|| if !download_dir.is_empty() { Some(download_dir.clone()) } else { None })
+        .or_else(|| {
+            if !download_dir.is_empty() {
+                Some(download_dir.clone())
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| {
             dirs::download_dir()
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
@@ -113,7 +119,12 @@ pub async fn start_download(
 
     let mut manager = state.download_manager.lock().await;
     manager
-        .add_download(download_opts, app_handle, state.db.clone(), state.download_manager.clone())
+        .add_download(
+            download_opts,
+            app_handle,
+            state.db.clone(),
+            state.download_manager.clone(),
+        )
         .await
         .map_err(|e| e.to_string())?;
 
@@ -154,7 +165,12 @@ pub async fn resume_download(
 ) -> Result<(), String> {
     let mut manager = state.download_manager.lock().await;
     manager
-        .resume_download(&job_id, app_handle, state.db.clone(), state.download_manager.clone())
+        .resume_download(
+            &job_id,
+            app_handle,
+            state.db.clone(),
+            state.download_manager.clone(),
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -167,15 +183,18 @@ pub async fn retry_download(
 ) -> Result<(), String> {
     let mut manager = state.download_manager.lock().await;
     manager
-        .retry_download(&job_id, app_handle, state.db.clone(), state.download_manager.clone())
+        .retry_download(
+            &job_id,
+            app_handle,
+            state.db.clone(),
+            state.download_manager.clone(),
+        )
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn get_queue(
-    state: State<'_, AppState>,
-) -> Result<QueueStateDto, String> {
+pub async fn get_queue(state: State<'_, AppState>) -> Result<QueueStateDto, String> {
     let manager = state.download_manager.lock().await;
     let jobs = manager.get_all_jobs();
     let active_count = manager.active_count();

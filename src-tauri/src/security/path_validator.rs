@@ -38,7 +38,18 @@ pub fn validate_job_id(job_id: &str) -> Result<()> {
 /// Creates a safe filename by removing path traversal components and dangerous characters.
 pub fn sanitize_filename(name: &str) -> String {
     name.chars()
-        .filter(|&c| c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c != '|' && c != '\0')
+        .filter(|&c| {
+            c != '/'
+                && c != '\\'
+                && c != ':'
+                && c != '*'
+                && c != '?'
+                && c != '"'
+                && c != '<'
+                && c != '>'
+                && c != '|'
+                && c != '\0'
+        })
         .collect::<String>()
         .trim()
         .to_string()

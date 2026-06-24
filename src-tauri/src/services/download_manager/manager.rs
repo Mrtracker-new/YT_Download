@@ -1,16 +1,15 @@
 use anyhow::{anyhow, Result};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
-use serde::Serialize;
 
 use super::job::{ControlSignal, DownloadJob, DownloadOptions, JobStatus};
 use crate::database::Database;
 use crate::services::ytdlp::download::{
-    run_download, DownloadArgs,
-    CompleteEventPayload, ErrorEventPayload, ResumedEventPayload,
+    run_download, CompleteEventPayload, DownloadArgs, ErrorEventPayload, ResumedEventPayload,
 };
 
 // ─── Queue-state event payload (sent to frontend after every state change) ─────
@@ -46,6 +45,12 @@ pub struct DownloadManager {
     queue_order: Vec<String>,
 }
 
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DownloadManager {
     pub fn new() -> Self {
         Self {
@@ -78,7 +83,8 @@ impl DownloadManager {
                     _ => 3,
                 }
             };
-            priority(a).cmp(&priority(b))
+            priority(a)
+                .cmp(&priority(b))
                 .then(b.created_at.cmp(&a.created_at))
         });
         jobs
@@ -94,14 +100,18 @@ impl DownloadManager {
         let payload = QueueUpdatedPayload {
             active_count: self.active_handles.len(),
             max_concurrent: self.max_concurrent,
-            jobs: self.jobs.values().map(|j| QueueJobDto {
-                job_id: j.job_id.clone(),
-                status: j.status.as_str().to_string(),
-                progress: j.progress,
-                speed: j.speed.clone(),
-                eta: j.eta.clone(),
-                error: j.error.clone(),
-            }).collect(),
+            jobs: self
+                .jobs
+                .values()
+                .map(|j| QueueJobDto {
+                    job_id: j.job_id.clone(),
+                    status: j.status.as_str().to_string(),
+                    progress: j.progress,
+                    speed: j.speed.clone(),
+                    eta: j.eta.clone(),
+                    error: j.error.clone(),
+                })
+                .collect(),
         };
         let _ = app_handle.emit("queue://updated", payload);
     }
@@ -148,8 +158,12 @@ impl DownloadManager {
     ) {
         // Purge handles for tasks that have already finished
         self.active_handles.retain(|_, h| !h.is_finished());
-        let available = self.max_concurrent.saturating_sub(self.active_handles.len());
-        if available == 0 { return; }
+        let available = self
+            .max_concurrent
+            .saturating_sub(self.active_handles.len());
+        if available == 0 {
+            return;
+        }
 
         let queued_ids: Vec<String> = self
             .queue_order
@@ -157,7 +171,7 @@ impl DownloadManager {
             .filter(|id| {
                 self.jobs
                     .get(*id)
-                    .map_or(false, |j| j.status == JobStatus::Queued)
+                    .is_some_and(|j| j.status == JobStatus::Queued)
             })
             .take(available)
             .cloned()
@@ -261,7 +275,11 @@ impl DownloadManager {
                         duration: None,
                         file_path: Some(file_path),
                         file_size,
-                        format: if opts.audio_only { "mp3".to_string() } else { "mp4".to_string() },
+                        format: if opts.audio_only {
+                            "mp3".to_string()
+                        } else {
+                            "mp4".to_string()
+                        },
                         quality: opts.quality.clone(),
                         audio_only: opts.audio_only,
                         status: "completed".to_string(),
@@ -335,11 +353,7 @@ impl DownloadManager {
     /// Err("__cancelled__"), which triggers the task cleanup in start_job's Err branch.
     ///
     /// For queued downloads: marks the job cancelled directly (no active process).
-    pub async fn cancel_download(
-        &mut self,
-        job_id: &str,
-        app_handle: &AppHandle,
-    ) -> Result<()> {
+    pub async fn cancel_download(&mut self, job_id: &str, app_handle: &AppHandle) -> Result<()> {
         let job = match self.jobs.get_mut(job_id) {
             Some(j) => j,
             None => return Err(anyhow!("Job not found: {}", job_id)),
@@ -381,11 +395,7 @@ impl DownloadManager {
     /// The manager sets status to Paused immediately for responsive UI feedback.
     /// The queue://updated event is emitted from the task cleanup path (after the
     /// process is confirmed dead) to avoid racing with progress events.
-    pub async fn pause_download(
-        &mut self,
-        job_id: &str,
-        _app_handle: &AppHandle,
-    ) -> Result<()> {
+    pub async fn pause_download(&mut self, job_id: &str, _app_handle: &AppHandle) -> Result<()> {
         let job = match self.jobs.get_mut(job_id) {
             Some(j) => j,
             None => return Err(anyhow!("Job not found: {}", job_id)),
@@ -431,7 +441,11 @@ impl DownloadManager {
         };
 
         if job.status != JobStatus::Paused {
-            return Err(anyhow!("Job {} is not paused (status: {:?})", job_id, job.status));
+            return Err(anyhow!(
+                "Job {} is not paused (status: {:?})",
+                job_id,
+                job.status
+            ));
         }
 
         job.status = JobStatus::Queued;
@@ -442,7 +456,9 @@ impl DownloadManager {
         // Emit resumed event so frontend can update the progress bar immediately
         let _ = app_handle.emit(
             "download://resumed",
-            ResumedEventPayload { job_id: job_id.to_string() },
+            ResumedEventPayload {
+                job_id: job_id.to_string(),
+            },
         );
 
         // Take the lingering handle out of the map (it may still be finishing cleanup)
@@ -458,10 +474,8 @@ impl DownloadManager {
         tokio::spawn(async move {
             // Wait for the previous task to finish (it's killing the process and cleaning up)
             if let Some(handle) = lingering_handle {
-                let wait_result = tokio::time::timeout(
-                    tokio::time::Duration::from_secs(3),
-                    handle,
-                ).await;
+                let wait_result =
+                    tokio::time::timeout(tokio::time::Duration::from_secs(3), handle).await;
                 if wait_result.is_err() {
                     log::warn!("Job {}: previous task didn't finish within 3s on resume — proceeding anyway", jid);
                 }
@@ -505,10 +519,7 @@ impl DownloadManager {
 
         tokio::spawn(async move {
             if let Some(handle) = lingering_handle {
-                let _ = tokio::time::timeout(
-                    tokio::time::Duration::from_secs(3),
-                    handle,
-                ).await;
+                let _ = tokio::time::timeout(tokio::time::Duration::from_secs(3), handle).await;
             }
 
             let mut mgr = self_arc.lock().await;

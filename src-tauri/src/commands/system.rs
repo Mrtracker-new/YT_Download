@@ -1,7 +1,7 @@
-use tauri::{State, AppHandle};
-use serde::{Deserialize, Serialize};
+use crate::services::binary_resolver::{get_binary_version, resolve_ffmpeg, resolve_ytdlp};
 use crate::AppState;
-use crate::services::binary_resolver::{resolve_ytdlp, resolve_ffmpeg, get_binary_version};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,8 +58,14 @@ pub async fn open_folder(path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn check_binaries(state: State<'_, AppState>) -> Result<BinaryStatus, String> {
     let db = state.db.lock().await;
-    let ytdlp_override = db.get_setting("ytdlpPath").unwrap_or_default().unwrap_or_default();
-    let ffmpeg_override = db.get_setting("ffmpegPath").unwrap_or_default().unwrap_or_default();
+    let ytdlp_override = db
+        .get_setting("ytdlpPath")
+        .unwrap_or_default()
+        .unwrap_or_default();
+    let ffmpeg_override = db
+        .get_setting("ffmpegPath")
+        .unwrap_or_default()
+        .unwrap_or_default();
     drop(db);
 
     let ytdlp_path = if !ytdlp_override.is_empty() {
@@ -74,10 +80,11 @@ pub async fn check_binaries(state: State<'_, AppState>) -> Result<BinaryStatus, 
         resolve_ffmpeg()
     };
 
-    let ytdlp_version = ytdlp_path.as_ref().and_then(|p| get_binary_version(p, &["--version"]));
+    let ytdlp_version = ytdlp_path
+        .as_ref()
+        .and_then(|p| get_binary_version(p, &["--version"]));
     let ffmpeg_version = ffmpeg_path.as_ref().and_then(|p| {
-        get_binary_version(p, &["-version"])
-            .map(|v| v.lines().next().unwrap_or("").to_string())
+        get_binary_version(p, &["-version"]).map(|v| v.lines().next().unwrap_or("").to_string())
     });
 
     Ok(BinaryStatus {
@@ -99,10 +106,7 @@ pub async fn check_binaries(state: State<'_, AppState>) -> Result<BinaryStatus, 
 #[tauri::command]
 pub async fn select_folder(app_handle: AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let folder = app_handle
-        .dialog()
-        .file()
-        .blocking_pick_folder();
+    let folder = app_handle.dialog().file().blocking_pick_folder();
     Ok(folder.map(|p| p.to_string()))
 }
 
@@ -119,7 +123,6 @@ pub async fn select_cookie_file(app_handle: AppHandle) -> Result<Option<String>,
 
 #[tauri::command]
 pub async fn get_default_download_dir() -> Result<String, String> {
-    let dir = dirs::download_dir()
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
+    let dir = dirs::download_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
     Ok(dir.to_string_lossy().to_string())
 }

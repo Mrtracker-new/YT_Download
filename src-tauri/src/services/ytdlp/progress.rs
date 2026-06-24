@@ -1,12 +1,12 @@
-use regex::Regex;
 use once_cell::sync::Lazy;
+use regex::Regex;
 
 /// Parsed progress data from a single yt-dlp output line.
 #[derive(Debug, Clone)]
 pub struct ProgressUpdate {
-    pub progress: f64,     // 0.0–100.0
-    pub speed: String,     // e.g. "2.5MiB/s"
-    pub eta: String,       // e.g. "00:30"
+    pub progress: f64,      // 0.0–100.0
+    pub speed: String,      // e.g. "2.5MiB/s"
+    pub eta: String,        // e.g. "00:30"
     pub total_size: String, // e.g. "123.4MiB"
     pub status: ProcessingStatus,
 }
@@ -34,24 +34,20 @@ impl ProcessingStatus {
 
 // Pre-compiled regexes for performance
 static PROGRESS_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\[download\]\s+(\d+\.?\d*)%\s+of\s+~?([\d\.]+\w+)\s+at\s+([\d\.]+\w+/s)\s+ETA\s+([\d:]+)").unwrap()
+    Regex::new(
+        r"\[download\]\s+(\d+\.?\d*)%\s+of\s+~?([\d\.]+\w+)\s+at\s+([\d\.]+\w+/s)\s+ETA\s+([\d:]+)",
+    )
+    .unwrap()
 });
 
-static PROGRESS_SIMPLE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\[download\]\s+(\d+\.?\d*)%").unwrap()
-});
+static PROGRESS_SIMPLE_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\[download\]\s+(\d+\.?\d*)%").unwrap());
 
-static SPEED_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"at\s+([\d\.]+\s*[KMG]?iB/s)").unwrap()
-});
+static SPEED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"at\s+([\d\.]+\s*[KMG]?iB/s)").unwrap());
 
-static ETA_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"ETA\s+(\d+:\d+(?::\d+)?)").unwrap()
-});
+static ETA_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"ETA\s+(\d+:\d+(?::\d+)?)").unwrap());
 
-static SIZE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"of\s+~?([\d\.]+\s*[KMG]?iB)").unwrap()
-});
+static SIZE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"of\s+~?([\d\.]+\s*[KMG]?iB)").unwrap());
 
 /// Parse a yt-dlp output line and return a ProgressUpdate if it contains progress info.
 pub fn parse_progress_line(line: &str) -> Option<ProgressUpdate> {
@@ -76,7 +72,10 @@ pub fn parse_progress_line(line: &str) -> Option<ProgressUpdate> {
         });
     }
 
-    if line.contains("[FixupM3u8]") || line.contains("[FixupDuration]") || line.contains("[EmbedSubtitle]") {
+    if line.contains("[FixupM3u8]")
+        || line.contains("[FixupDuration]")
+        || line.contains("[EmbedSubtitle]")
+    {
         return Some(ProgressUpdate {
             progress: 99.5,
             speed: String::new(),
@@ -109,13 +108,16 @@ pub fn parse_progress_line(line: &str) -> Option<ProgressUpdate> {
     // Fallback: just extract percentage
     if let Some(caps) = PROGRESS_SIMPLE_REGEX.captures(line) {
         let progress: f64 = caps[1].parse().unwrap_or(0.0);
-        let speed = SPEED_REGEX.captures(line)
+        let speed = SPEED_REGEX
+            .captures(line)
             .map(|c| c[1].to_string())
             .unwrap_or_default();
-        let eta = ETA_REGEX.captures(line)
+        let eta = ETA_REGEX
+            .captures(line)
             .map(|c| c[1].to_string())
             .unwrap_or_default();
-        let total_size = SIZE_REGEX.captures(line)
+        let total_size = SIZE_REGEX
+            .captures(line)
             .map(|c| c[1].to_string())
             .unwrap_or_default();
 
