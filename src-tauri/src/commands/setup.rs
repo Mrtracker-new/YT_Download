@@ -312,9 +312,15 @@ fn extract_ffmpeg_windows(
     if got_ffmpeg {
         // ffmpeg present but ffprobe missing — cutting features will fail, but
         // plain downloads still work. Surface as an error so setup can retry.
-        Err("ffprobe.exe not found in the archive. The archive structure may have changed.".to_string())
+        Err(
+            "ffprobe.exe not found in the archive. The archive structure may have changed."
+                .to_string(),
+        )
     } else {
-        Err("ffmpeg.exe not found in the archive. The archive structure may have changed.".to_string())
+        Err(
+            "ffmpeg.exe not found in the archive. The archive structure may have changed."
+                .to_string(),
+        )
     }
 }
 
