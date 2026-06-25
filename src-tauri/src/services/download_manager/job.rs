@@ -76,6 +76,16 @@ pub struct DownloadOptions {
     /// Path to a Netscape-format cookies.txt file. Passed to yt-dlp's `--cookies`.
     /// Takes precedence over `cookie_browser` when non-empty.
     pub cookie_file: String,
+    /// Preferred video codec: "auto" | "h264" | "vp9" | "av1". Empty/"auto" = no constraint.
+    pub video_codec: String,
+    /// Audio output format for audio-only downloads: "mp3" | "opus" | "m4a" | "flac" | "wav".
+    pub audio_format: String,
+    /// Audio bitrate in kbps for lossy audio formats (e.g. "192"). Ignored for flac/wav.
+    pub audio_quality: String,
+    /// Embed the video thumbnail as cover art (audio) / poster (video).
+    pub embed_thumbnail: bool,
+    /// SponsorBlock categories to remove (e.g. ["sponsor", "intro"]). Empty = disabled.
+    pub sponsorblock_categories: Vec<String>,
 }
 
 /// Represents a single download job in the manager

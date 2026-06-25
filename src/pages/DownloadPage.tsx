@@ -9,6 +9,8 @@ import VideoPreview from '../components/downloader/VideoPreview';
 import FormatSelector from '../components/downloader/FormatSelector';
 import { useDownload } from '../hooks/useDownload';
 import type { SubtitleOptions } from '../types/video';
+import type { AdvancedOptions } from '../types/download';
+import { DEFAULT_ADVANCED_OPTIONS } from '../types/download';
 
 const DEFAULT_SUBTITLE_OPTIONS: SubtitleOptions = {
   enabled: false,
@@ -25,6 +27,7 @@ const DownloadPage: React.FC = () => {
   const [audioOnly, setAudioOnly] = useState(false);
   const [quality, setQuality] = useState('720p');
   const [subtitleOptions, setSubtitleOptions] = useState<SubtitleOptions>(DEFAULT_SUBTITLE_OPTIONS);
+  const [advanced, setAdvanced] = useState<AdvancedOptions>(DEFAULT_ADVANCED_OPTIONS);
   const [isQueuing, setIsQueuing] = useState(false);
 
   // Store the URL the user submitted — needed for download since VideoInfo
@@ -49,7 +52,7 @@ const DownloadPage: React.FC = () => {
     setIsQueuing(true);
     try {
       // Use the original URL — never reconstruct from videoId which is platform-specific
-      await queueDownload({ url: fetchedUrl, quality, audioOnly, subtitleOptions });
+      await queueDownload({ url: fetchedUrl, quality, audioOnly, subtitleOptions, advanced });
       toast.success('Added to download queue!', { icon: '✅' });
       navigate('/queue');
     } catch (err) {
@@ -142,6 +145,8 @@ const DownloadPage: React.FC = () => {
                 setQuality={setQuality}
                 subtitleOptions={subtitleOptions}
                 setSubtitleOptions={setSubtitleOptions}
+                advanced={advanced}
+                setAdvanced={setAdvanced}
                 disabled={isQueuing}
               />
 

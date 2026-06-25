@@ -76,6 +76,16 @@ pub struct DownloadArgs {
     /// precedence over `cookie_browser` (bulletproof on Windows where browser cookie
     /// decryption can fail). Empty = fall back to browser extraction.
     pub cookie_file: String,
+    /// Preferred video codec: "auto" | "h264" | "vp9" | "av1". Empty/"auto" = no constraint.
+    pub video_codec: String,
+    /// Audio output format for audio-only downloads: "mp3" | "opus" | "m4a" | "flac" | "wav".
+    pub audio_format: String,
+    /// Audio bitrate in kbps for lossy audio formats (e.g. "192"). Ignored for flac/wav.
+    pub audio_quality: String,
+    /// Embed the video thumbnail as cover art (audio) / poster (video).
+    pub embed_thumbnail: bool,
+    /// SponsorBlock categories to remove (e.g. ["sponsor", "intro"]). Empty = disabled.
+    pub sponsorblock_categories: Vec<String>,
 }
 
 impl DownloadArgs {
@@ -87,6 +97,34 @@ impl DownloadArgs {
     /// True when a browser is configured for cookie extraction.
     fn has_cookie_browser(&self) -> bool {
         !self.cookie_browser.is_empty() && self.cookie_browser != "none"
+    }
+}
+
+/// Map a user-facing codec choice to the yt-dlp `vcodec` prefix used in `-f` filters.
+/// Returns None for "auto"/empty (no codec constraint).
+fn vcodec_prefix(codec: &str) -> Option<&'static str> {
+    match codec.trim().to_lowercase().as_str() {
+        "h264" | "avc" | "avc1" => Some("avc1"),
+        "vp9" => Some("vp9"),
+        "av1" | "av01" => Some("av01"),
+        _ => None, // "auto", "", or unknown → let yt-dlp pick the best
+    }
+}
+
+/// Build the `--audio-quality` value for the chosen audio format.
+/// Lossless formats (flac/wav) ignore bitrate → use yt-dlp's best ("0").
+/// Lossy formats take a kbps value (e.g. "192" → "192K"); falls back to "192K".
+fn audio_quality_arg(audio_format: &str, bitrate: &str) -> String {
+    match audio_format.trim().to_lowercase().as_str() {
+        "flac" | "wav" => "0".to_string(),
+        _ => {
+            let b = bitrate.trim();
+            if b.is_empty() || !b.chars().all(|c| c.is_ascii_digit()) {
+                "192K".to_string()
+            } else {
+                format!("{}K", b)
+            }
+        }
     }
 }
 
@@ -122,25 +160,66 @@ pub async fn run_download(
 
     // ── Output format & quality ────────────────────────────────────────────────
     if args.audio_only {
+        let audio_format = if args.audio_format.trim().is_empty() {
+            "mp3".to_string()
+        } else {
+            args.audio_format.trim().to_string()
+        };
         cmd_args.extend([
             "-x".to_string(),
             "--audio-format".to_string(),
-            "mp3".to_string(),
+            audio_format.clone(),
             "--audio-quality".to_string(),
-            "0".to_string(),
+            audio_quality_arg(&audio_format, &args.audio_quality),
         ]);
+        // Cover art: embed the thumbnail into the audio container.
+        if args.embed_thumbnail {
+            cmd_args.push("--embed-thumbnail".to_string());
+        }
     } else {
+        // Optional codec constraint (e.g. avc1/vp9/av01) injected into each video selector.
+        let vcodec = vcodec_prefix(&args.video_codec);
+        let vfilter = vcodec
+            .map(|c| format!("[vcodec^={}]", c))
+            .unwrap_or_default();
+
         let quality_height = args.quality.replace('p', "");
-        let format_selector = if !quality_height.is_empty() && quality_height != "best" {
-            format!(
-                "bestvideo[height<={}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={}]+bestaudio/best[height<={}]/best",
-                quality_height, quality_height, quality_height
-            )
+        let height_filter = if !quality_height.is_empty() && quality_height != "best" {
+            format!("[height<={}]", quality_height)
         } else {
-            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best".to_string()
+            String::new()
         };
+
+        // bestvideo<codec><height>+bestaudio / fallbacks that progressively drop constraints.
+        let format_selector = format!(
+            "bestvideo{vf}{hf}+bestaudio/bestvideo{hf}+bestaudio/best{hf}/best",
+            vf = vfilter,
+            hf = height_filter,
+        );
         cmd_args.extend(["-f".to_string(), format_selector]);
-        cmd_args.extend(["--merge-output-format".to_string(), "mp4".to_string()]);
+
+        // vp9/av1 don't mux cleanly into mp4 — use mkv so the merge never fails.
+        let merge_format = match vcodec {
+            Some("vp9") | Some("av01") => "mkv",
+            _ => "mp4",
+        };
+        cmd_args.extend([
+            "--merge-output-format".to_string(),
+            merge_format.to_string(),
+        ]);
+
+        // Embed thumbnail as a poster/cover when requested.
+        if args.embed_thumbnail {
+            cmd_args.push("--embed-thumbnail".to_string());
+        }
+    }
+
+    // ── SponsorBlock (applies to both audio and video) ──────────────────────────
+    if !args.sponsorblock_categories.is_empty() {
+        cmd_args.extend([
+            "--sponsorblock-remove".to_string(),
+            args.sponsorblock_categories.join(","),
+        ]);
     }
 
     // ── Subtitles ──────────────────────────────────────────────────────────────

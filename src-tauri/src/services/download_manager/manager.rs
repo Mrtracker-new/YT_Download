@@ -226,6 +226,11 @@ impl DownloadManager {
                     file_name_template: opts.file_name_template.clone(),
                     cookie_browser: opts.cookie_browser.clone(),
                     cookie_file: opts.cookie_file.clone(),
+                    video_codec: opts.video_codec.clone(),
+                    audio_format: opts.audio_format.clone(),
+                    audio_quality: opts.audio_quality.clone(),
+                    embed_thumbnail: opts.embed_thumbnail,
+                    sponsorblock_categories: opts.sponsorblock_categories.clone(),
                 },
                 app_handle.clone(),
                 control_rx,
@@ -276,9 +281,16 @@ impl DownloadManager {
                         file_path: Some(file_path),
                         file_size,
                         format: if opts.audio_only {
-                            "mp3".to_string()
+                            if opts.audio_format.is_empty() {
+                                "mp3".to_string()
+                            } else {
+                                opts.audio_format.clone()
+                            }
                         } else {
-                            "mp4".to_string()
+                            match opts.video_codec.to_lowercase().as_str() {
+                                "vp9" | "av1" => "mkv".to_string(),
+                                _ => "mp4".to_string(),
+                            }
                         },
                         quality: opts.quality.clone(),
                         audio_only: opts.audio_only,

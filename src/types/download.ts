@@ -43,12 +43,41 @@ export interface DownloadJob {
   completedAt?: number;   // unix ms
 }
 
+export type VideoCodec = 'auto' | 'h264' | 'vp9' | 'av1';
+export type AudioFormat = 'mp3' | 'opus' | 'm4a' | 'flac' | 'wav';
+export type AudioBitrate = '128' | '192' | '256' | '320';
+export type SponsorBlockCategory =
+  | 'sponsor'
+  | 'intro'
+  | 'outro'
+  | 'selfpromo'
+  | 'interaction'
+  | 'music_offtopic';
+
+/** Advanced per-download format options (codec, audio, thumbnail, SponsorBlock). */
+export interface AdvancedOptions {
+  videoCodec: VideoCodec;
+  audioFormat: AudioFormat;
+  audioQuality: AudioBitrate;   // kbps for lossy formats; ignored for flac/wav
+  embedThumbnail: boolean;
+  sponsorblockCategories: SponsorBlockCategory[]; // empty = SponsorBlock disabled
+}
+
+export const DEFAULT_ADVANCED_OPTIONS: AdvancedOptions = {
+  videoCodec: 'auto',
+  audioFormat: 'mp3',
+  audioQuality: '192',
+  embedThumbnail: false,
+  sponsorblockCategories: [],
+};
+
 export interface DownloadOptions {
   url: string;
   quality: string;
   audioOnly: boolean;
   subtitleOptions: SubtitleOptions;
   outputDir?: string;     // overrides settings if provided
+  advanced: AdvancedOptions;
 }
 
 export interface QueueState {

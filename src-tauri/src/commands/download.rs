@@ -16,12 +16,42 @@ pub struct SubtitleOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AdvancedOptions {
+    /// "auto" | "h264" | "vp9" | "av1"
+    pub video_codec: String,
+    /// "mp3" | "opus" | "m4a" | "flac" | "wav"
+    pub audio_format: String,
+    /// Bitrate in kbps for lossy audio (e.g. "192").
+    pub audio_quality: String,
+    /// Embed the thumbnail as cover art / poster.
+    pub embed_thumbnail: bool,
+    /// SponsorBlock categories to remove. Empty = disabled.
+    pub sponsorblock_categories: Vec<String>,
+}
+
+impl Default for AdvancedOptions {
+    fn default() -> Self {
+        Self {
+            video_codec: "auto".to_string(),
+            audio_format: "mp3".to_string(),
+            audio_quality: "192".to_string(),
+            embed_thumbnail: false,
+            sponsorblock_categories: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartDownloadOptions {
     pub url: String,
     pub quality: String,
     pub audio_only: bool,
     pub subtitle_options: SubtitleOptions,
     pub output_dir: Option<String>,
+    /// Advanced format options. Optional for backward compatibility — defaults applied when absent.
+    #[serde(default)]
+    pub advanced: Option<AdvancedOptions>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +132,8 @@ pub async fn start_download(
                 .to_string()
         });
 
+    let advanced = opts.advanced.unwrap_or_default();
+
     let download_opts = DownloadOptions {
         job_id: job_id.clone(),
         url: validated_url,
@@ -115,6 +147,11 @@ pub async fn start_download(
         file_name_template,
         cookie_browser,
         cookie_file,
+        video_codec: advanced.video_codec,
+        audio_format: advanced.audio_format,
+        audio_quality: advanced.audio_quality,
+        embed_thumbnail: advanced.embed_thumbnail,
+        sponsorblock_categories: advanced.sponsorblock_categories,
     };
 
     let mut manager = state.download_manager.lock().await;

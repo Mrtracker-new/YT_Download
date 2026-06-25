@@ -11,6 +11,7 @@ import { isValidUrl } from '../utils/validators';
 import { formatDuration, truncate } from '../utils/formatters';
 import type { PlaylistInfo } from '../types/video';
 import type { DownloadJob } from '../types/download';
+import { DEFAULT_ADVANCED_OPTIONS } from '../types/download';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -83,6 +84,7 @@ const PlaylistPage: React.FC = () => {
           quality,
           audioOnly,
           subtitleOptions: { enabled: false, language: 'en', mode: 'embed', includeAuto: false },
+          advanced: DEFAULT_ADVANCED_OPTIONS,
         });
         const job: DownloadJob = {
           jobId,

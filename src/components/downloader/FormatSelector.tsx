@@ -14,9 +14,24 @@ import {
   Collapse,
   CircularProgress,
 } from '@mui/material';
-import { Audiotrack, Videocam, ClosedCaption as SubtitleIcon } from '@mui/icons-material';
+import {
+  Audiotrack,
+  Videocam,
+  ClosedCaption as SubtitleIcon,
+  Memory as CodecIcon,
+  GraphicEq as AudioFmtIcon,
+  Image as ThumbnailIcon,
+  Block as SponsorIcon,
+} from '@mui/icons-material';
 import { getSubtitleLanguages } from '../../services/tauriApi';
 import type { VideoInfo, SubtitleOptions } from '../../types/video';
+import type {
+  AdvancedOptions,
+  VideoCodec,
+  AudioFormat,
+  AudioBitrate,
+  SponsorBlockCategory,
+} from '../../types/download';
 
 interface FormatSelectorProps {
   videoInfo: VideoInfo;
@@ -26,12 +41,41 @@ interface FormatSelectorProps {
   setQuality: (v: string) => void;
   subtitleOptions: SubtitleOptions;
   setSubtitleOptions: (v: SubtitleOptions) => void;
+  advanced: AdvancedOptions;
+  setAdvanced: (v: AdvancedOptions) => void;
   disabled: boolean;
 }
 
 type SubtitleMode = 'off' | 'embed' | 'sidecar';
 
+const CODEC_OPTIONS: { value: VideoCodec; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'h264', label: 'H.264' },
+  { value: 'vp9', label: 'VP9' },
+  { value: 'av1', label: 'AV1' },
+];
+
+const AUDIO_FORMATS: { value: AudioFormat; label: string; lossless?: boolean }[] = [
+  { value: 'mp3', label: 'MP3' },
+  { value: 'opus', label: 'Opus' },
+  { value: 'm4a', label: 'M4A (AAC)' },
+  { value: 'flac', label: 'FLAC (lossless)', lossless: true },
+  { value: 'wav', label: 'WAV (lossless)', lossless: true },
+];
+
+const BITRATES: AudioBitrate[] = ['128', '192', '256', '320'];
+
+const SPONSORBLOCK_CATEGORIES: { value: SponsorBlockCategory; label: string }[] = [
+  { value: 'sponsor', label: 'Sponsor' },
+  { value: 'intro', label: 'Intro' },
+  { value: 'outro', label: 'Outro' },
+  { value: 'selfpromo', label: 'Self-promo' },
+  { value: 'interaction', label: 'Interaction reminder' },
+  { value: 'music_offtopic', label: 'Non-music section' },
+];
+
 const qualityLabelMap: Record<string, string> = {
+  '4320p': '8K',
   '2160p': '4K',
   '1440p': '2K',
   '1080p': '1080p',
@@ -50,9 +94,25 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
   setQuality,
   subtitleOptions,
   setSubtitleOptions,
+  advanced,
+  setAdvanced,
   disabled,
 }) => {
   const [subtitleMode, setSubtitleMode] = useState<SubtitleMode>('off');
+  const [sponsorOpen, setSponsorOpen] = useState(false);
+
+  const activeAudioFormat = AUDIO_FORMATS.find((f) => f.value === advanced.audioFormat);
+  const isLossless = activeAudioFormat?.lossless ?? false;
+
+  const toggleSponsorCategory = (cat: SponsorBlockCategory) => {
+    const has = advanced.sponsorblockCategories.includes(cat);
+    setAdvanced({
+      ...advanced,
+      sponsorblockCategories: has
+        ? advanced.sponsorblockCategories.filter((c) => c !== cat)
+        : [...advanced.sponsorblockCategories, cat],
+    });
+  };
   const [subtitleLangs, setSubtitleLangs] = useState<{ code: string; name: string }[]>([]);
   const [loadingLangs, setLoadingLangs] = useState(false);
 
@@ -137,6 +197,39 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
     },
   };
 
+  const selectSx = {
+    bgcolor: 'transparent',
+    border: '2px solid',
+    borderColor: 'text.primary',
+    borderRadius: '255px 15px 225px 15px/15px 225px 15px 255px',
+    fontFamily: 'Patrick Hand',
+    fontSize: '1rem',
+    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+    '& .MuiSvgIcon-root': { color: 'text.primary' },
+  };
+
+  const selectMenuProps = {
+    PaperProps: {
+      sx: {
+        bgcolor: '#1e1e28',
+        border: '2px solid',
+        borderColor: 'text.primary',
+        borderRadius: '12px',
+        boxShadow: '4px 4px 0 0 rgba(0,0,0,0.8)',
+        maxHeight: 280,
+        '& .MuiMenuItem-root': {
+          fontFamily: 'Patrick Hand',
+          fontSize: '1rem',
+          color: '#fdfbf7',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+          '&.Mui-selected': { bgcolor: 'rgba(255,77,77,0.2)' },
+          '&.Mui-selected:hover': { bgcolor: 'rgba(255,77,77,0.3)' },
+        },
+        '& .MuiList-root': { py: 0.5 },
+      },
+    },
+  };
+
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       {/* Format */}
@@ -154,7 +247,7 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
             <Videocam sx={{ mr: 0.75, fontSize: 18 }} /> Video
           </ToggleButton>
           <ToggleButton value="audio">
-            <Audiotrack sx={{ mr: 0.75, fontSize: 18 }} /> Audio Only (MP3)
+            <Audiotrack sx={{ mr: 0.75, fontSize: 18 }} /> Audio Only
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
@@ -197,6 +290,93 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
               </Grid>
             ))}
           </Grid>
+        </Box>
+      )}
+
+      {/* Video codec */}
+      {!audioOnly && (
+        <Box>
+          {sectionLabel('Codec', <CodecIcon />)}
+          <ToggleButtonGroup
+            value={advanced.videoCodec}
+            exclusive
+            fullWidth
+            disabled={disabled}
+            onChange={(_, v: VideoCodec | null) => { if (v) setAdvanced({ ...advanced, videoCodec: v }); }}
+            sx={toggleGroupSx}
+          >
+            {CODEC_OPTIONS.map((c) => (
+              <ToggleButton key={c.value} value={c.value}>{c.label}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75, fontFamily: 'Patrick Hand', fontSize: '0.85rem' }}>
+            {advanced.videoCodec === 'av1'
+              ? 'AV1: smallest files, newest codec. Saved as .mkv.'
+              : advanced.videoCodec === 'vp9'
+              ? 'VP9: efficient, widely supported. Saved as .mkv.'
+              : advanced.videoCodec === 'h264'
+              ? 'H.264: most compatible with all players. Saved as .mp4.'
+              : 'Auto: yt-dlp picks the best available codec.'}
+          </Typography>
+        </Box>
+      )}
+
+      {/* Audio format + bitrate + cover art */}
+      {audioOnly && (
+        <Box>
+          {sectionLabel('Audio Format', <AudioFmtIcon />)}
+          <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+            <FormControl size="small" sx={{ minWidth: 160, flex: 1 }}>
+              <Select
+                value={advanced.audioFormat}
+                disabled={disabled}
+                onChange={(e) => setAdvanced({ ...advanced, audioFormat: e.target.value as AudioFormat })}
+                sx={selectSx}
+                MenuProps={selectMenuProps}
+              >
+                {AUDIO_FORMATS.map((f) => (
+                  <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 130, flex: 1 }}>
+              <Select
+                value={advanced.audioQuality}
+                disabled={disabled || isLossless}
+                onChange={(e) => setAdvanced({ ...advanced, audioQuality: e.target.value as AudioBitrate })}
+                sx={{ ...selectSx, opacity: isLossless ? 0.5 : 1 }}
+                MenuProps={selectMenuProps}
+              >
+                {BITRATES.map((b) => (
+                  <MenuItem key={b} value={b}>{b} kbps</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <FormControlLabel
+            sx={{ m: 0, mt: 1 }}
+            control={
+              <Checkbox
+                checked={advanced.embedThumbnail}
+                onChange={(e) => setAdvanced({ ...advanced, embedThumbnail: e.target.checked })}
+                disabled={disabled}
+                size="small"
+                icon={<ThumbnailIcon />}
+                checkedIcon={<ThumbnailIcon />}
+                sx={{ color: 'text.secondary', '&.Mui-checked': { color: 'primary.main' } }}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.primary" sx={{ fontFamily: 'Patrick Hand', fontSize: '1rem' }}>
+                Embed thumbnail as cover art
+              </Typography>
+            }
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontFamily: 'Patrick Hand', fontSize: '0.85rem' }}>
+            {isLossless ? 'Lossless format — bitrate is ignored.' : 'Pick a higher bitrate for better quality (larger files).'}
+          </Typography>
         </Box>
       )}
 
@@ -309,6 +489,61 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
           </Collapse>
         </Box>
       )}
+
+      {/* SponsorBlock — applies to both audio and video */}
+      <Box>
+        {sectionLabel('SponsorBlock', <SponsorIcon />)}
+        <ToggleButtonGroup
+          value={advanced.sponsorblockCategories.length > 0 ? 'on' : 'off'}
+          exclusive
+          fullWidth
+          disabled={disabled}
+          onChange={(_, v: string | null) => {
+            if (!v) return;
+            if (v === 'on') {
+              setSponsorOpen(true);
+              // Default to the safest, most-wanted category when enabling.
+              if (advanced.sponsorblockCategories.length === 0) {
+                setAdvanced({ ...advanced, sponsorblockCategories: ['sponsor'] });
+              }
+            } else {
+              setAdvanced({ ...advanced, sponsorblockCategories: [] });
+            }
+          }}
+          sx={toggleGroupSx}
+        >
+          <ToggleButton value="off">Off</ToggleButton>
+          <ToggleButton value="on" onClick={() => setSponsorOpen(true)}>Remove segments</ToggleButton>
+        </ToggleButtonGroup>
+
+        <Collapse in={advanced.sponsorblockCategories.length > 0 && sponsorOpen} timeout={220}>
+          <Box mt={1.5} display="flex" flexDirection="column" gap={0.25}>
+            {SPONSORBLOCK_CATEGORIES.map((cat) => (
+              <FormControlLabel
+                key={cat.value}
+                sx={{ m: 0 }}
+                control={
+                  <Checkbox
+                    checked={advanced.sponsorblockCategories.includes(cat.value)}
+                    onChange={() => toggleSponsorCategory(cat.value)}
+                    disabled={disabled}
+                    size="small"
+                    sx={{ color: 'text.secondary', '&.Mui-checked': { color: 'primary.main' } }}
+                  />
+                }
+                label={
+                  <Typography variant="caption" color="text.primary" sx={{ fontFamily: 'Patrick Hand', fontSize: '1rem' }}>
+                    {cat.label}
+                  </Typography>
+                }
+              />
+            ))}
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75, fontFamily: 'Patrick Hand', fontSize: '0.85rem' }}>
+            Selected segments are cut from the file using community SponsorBlock data.
+          </Typography>
+        </Collapse>
+      </Box>
     </Box>
   );
 };

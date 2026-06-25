@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import { useQueueStore } from '../store/queueStore';
 import { getVideoInfo, startDownload } from '../services/tauriApi';
 import type { VideoInfo, SubtitleOptions } from '../types/video';
-import type { DownloadJob } from '../types/download';
+import type { DownloadJob, AdvancedOptions } from '../types/download';
+import { DEFAULT_ADVANCED_OPTIONS } from '../types/download';
 
 /**
  * Hook that manages the full download flow:
@@ -45,13 +46,16 @@ export function useDownload() {
       quality: string;
       audioOnly: boolean;
       subtitleOptions: SubtitleOptions;
+      advanced?: AdvancedOptions;
     }): Promise<string | null> => {
       try {
+        const advanced = opts.advanced ?? DEFAULT_ADVANCED_OPTIONS;
         const jobId = await startDownload({
           url: opts.url,
           quality: opts.quality,
           audioOnly: opts.audioOnly,
           subtitleOptions: opts.subtitleOptions,
+          advanced,
         });
 
         // Optimistically add to UI queue
