@@ -37,13 +37,24 @@ And it's a **real native app** — Rust + Tauri at the core, React on top. Not a
 
 | | |
 |---|---|
-| 🎥 **Crisp video** | Down to the file in up to **1080p** — or whatever the highest the site has |
-| 🎵 **Instant MP3** | Rip audio clean — music, podcasts, lectures, the lot |
+| 🎥 **Crisp video** | Up to **8K** — pick your codec too: **H.264, VP9, or AV1** |
+| 🎵 **Audio, your way** | **MP3, Opus, M4A, FLAC, or WAV** at **128–320 kbps** — lossless for the music folk |
+| 🖼️ **Cover art** | Embed the thumbnail right into your audio file — looks proper in every player |
+| ⏭️ **SponsorBlock** | Auto-cut sponsors, intros, outros & more — community-sourced, off until you want it |
 | 📃 **Whole playlists** | Fetch them all, cherry-pick the ones you want, queue and go |
 | ⚡ **Live progress** | Real-time **speed + ETA bars** — 3 downloads running at once |
 | ⏯️ **Real pause & resume** | Stops the actual process, not just the spinner — pick up right where you left off |
 | 🕘 **History** | Every grab remembered, so you never download the same thing twice |
 | 💬 **Subtitles** | Burn them into the MP4 or save them as a tidy `.srt` |
+
+## 🎛️ Dial it in
+
+Every download has its own knobs — set them per video, right before you hit go:
+
+- **Quality + codec** — 8K down to 144p, paired with H.264 (max compatibility), VP9, or AV1 (smallest files). AV1/VP9 land as `.mkv`; H.264 stays `.mp4`.
+- **Audio format + bitrate** — MP3/Opus/M4A for small, FLAC/WAV for lossless. Bitrate picker for the lossy ones.
+- **Embed thumbnail** — tuck the cover art into the file so it shows up in your music player.
+- **SponsorBlock** — flip it on, tick the segment types you want gone (sponsor, intro, outro, self-promo, and more). Off by default — nothing gets cut unless you say so.
 
 ## 🚀 Get going in a minute
 
