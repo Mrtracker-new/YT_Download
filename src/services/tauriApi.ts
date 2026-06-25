@@ -169,6 +169,7 @@ export interface SetupProgress {
 export interface BinaryCheckResult {
   ytdlpFound: boolean;
   ffmpegFound: boolean;
+  ffprobeFound: boolean;
   ytdlpPath: string | null;
   ffmpegPath: string | null;
   needsSetup: boolean;

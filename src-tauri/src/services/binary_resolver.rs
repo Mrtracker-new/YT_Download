@@ -46,6 +46,27 @@ pub fn resolve_ffmpeg() -> Option<String> {
     which_binary(binary_name)
 }
 
+/// Resolve ffprobe binary path. yt-dlp needs this (alongside ffmpeg) to read
+/// durations when cutting — SponsorBlock removal and --force-keyframes.
+pub fn resolve_ffprobe() -> Option<String> {
+    let binary_name = if cfg!(windows) {
+        "ffprobe.exe"
+    } else {
+        "ffprobe"
+    };
+
+    // Tier 1: App data dir
+    if let Some(app_data) = get_app_bin_dir() {
+        let local = app_data.join(binary_name);
+        if local.exists() {
+            return Some(local.to_string_lossy().to_string());
+        }
+    }
+
+    // Tier 2: System PATH
+    which_binary(binary_name)
+}
+
 /// Returns the app-local bin directory (creates it if needed).
 pub fn get_app_bin_dir() -> Option<PathBuf> {
     dirs::data_local_dir().map(|d| {

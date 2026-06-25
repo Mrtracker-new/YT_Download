@@ -17,6 +17,7 @@ pub struct SetupProgress {
 pub struct BinaryCheckResult {
     pub ytdlp_found: bool,
     pub ffmpeg_found: bool,
+    pub ffprobe_found: bool,
     pub ytdlp_path: Option<String>,
     pub ffmpeg_path: Option<String>,
     pub needs_setup: bool,
@@ -37,13 +38,19 @@ fn emit_progress(app: &AppHandle, name: &str, progress: f64, status: &str, messa
 /// Check which binaries are available without downloading anything.
 #[tauri::command]
 pub async fn check_setup() -> Result<BinaryCheckResult, String> {
-    use crate::services::binary_resolver::{resolve_ffmpeg, resolve_ytdlp};
+    use crate::services::binary_resolver::{resolve_ffmpeg, resolve_ffprobe, resolve_ytdlp};
     let ytdlp = resolve_ytdlp();
     let ffmpeg = resolve_ffmpeg();
-    let needs_setup = ytdlp.is_none();
+    let ffprobe = resolve_ffprobe();
+    // A partial ffmpeg install (ffmpeg present but ffprobe missing — e.g. older
+    // app versions that only extracted ffmpeg.exe) breaks SponsorBlock cutting.
+    // Treat it as needing setup so the ffmpeg bundle is re-downloaded with both.
+    let partial_ffmpeg = ffmpeg.is_some() && ffprobe.is_none();
+    let needs_setup = ytdlp.is_none() || partial_ffmpeg;
     Ok(BinaryCheckResult {
         ytdlp_found: ytdlp.is_some(),
-        ffmpeg_found: ffmpeg.is_some(),
+        ffmpeg_found: ffmpeg.is_some() && ffprobe.is_some(),
+        ffprobe_found: ffprobe.is_some(),
         ytdlp_path: ytdlp,
         ffmpeg_path: ffmpeg,
         needs_setup,
@@ -274,19 +281,41 @@ fn extract_ffmpeg_windows(
     let file = std::fs::File::open(archive_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
 
+    // Extract both ffmpeg.exe AND ffprobe.exe — yt-dlp needs ffprobe to read
+    // durations when cutting (SponsorBlock segment removal, --force-keyframes).
+    let mut got_ffmpeg = false;
+    let mut got_ffprobe = false;
+
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().to_string();
-        // Only extract ffmpeg.exe from the bin directory
-        if name.ends_with("/bin/ffmpeg.exe") || name.ends_with("\\bin\\ffmpeg.exe") {
-            let dest = dest_dir.join("ffmpeg.exe");
+
+        let target = if name.ends_with("/bin/ffmpeg.exe") || name.ends_with("\\bin\\ffmpeg.exe") {
+            Some(("ffmpeg.exe", &mut got_ffmpeg))
+        } else if name.ends_with("/bin/ffprobe.exe") || name.ends_with("\\bin\\ffprobe.exe") {
+            Some(("ffprobe.exe", &mut got_ffprobe))
+        } else {
+            None
+        };
+
+        if let Some((out_name, flag)) = target {
+            let dest = dest_dir.join(out_name);
             let mut out = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
             std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
-            return Ok(());
+            *flag = true;
+            if got_ffmpeg && got_ffprobe {
+                return Ok(());
+            }
         }
     }
 
-    Err("ffmpeg.exe not found in the archive. The archive structure may have changed.".to_string())
+    if got_ffmpeg {
+        // ffmpeg present but ffprobe missing — cutting features will fail, but
+        // plain downloads still work. Surface as an error so setup can retry.
+        Err("ffprobe.exe not found in the archive. The archive structure may have changed.".to_string())
+    } else {
+        Err("ffmpeg.exe not found in the archive. The archive structure may have changed.".to_string())
+    }
 }
 
 #[cfg(unix)]
@@ -294,22 +323,37 @@ fn extract_ffmpeg_unix(
     archive_path: &std::path::Path,
     dest_dir: &std::path::Path,
 ) -> Result<(), String> {
-    let output = std::process::Command::new("tar")
-        .args([
-            "-xf",
-            archive_path.to_str().unwrap_or(""),
-            "--wildcards",
-            "*/bin/ffmpeg",
-            "-O",
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
+    use std::os::unix::fs::PermissionsExt;
 
-    if output.status.success() {
-        let dest = dest_dir.join("ffmpeg");
-        std::fs::write(dest, &output.stdout).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    // Extract ffmpeg AND ffprobe — yt-dlp needs ffprobe to read durations when
+    // cutting (SponsorBlock segment removal, --force-keyframes).
+    for bin in ["ffmpeg", "ffprobe"] {
+        let output = std::process::Command::new("tar")
+            .args([
+                "-xf",
+                archive_path.to_str().unwrap_or(""),
+                "--wildcards",
+                &format!("*/bin/{bin}"),
+                "-O",
+            ])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to extract {bin}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let dest = dest_dir.join(bin);
+        std::fs::write(&dest, &output.stdout).map_err(|e| e.to_string())?;
+        if let Ok(meta) = std::fs::metadata(&dest) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            let _ = std::fs::set_permissions(&dest, perms);
+        }
     }
+
+    Ok(())
 }

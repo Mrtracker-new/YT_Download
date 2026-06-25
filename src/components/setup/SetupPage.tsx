@@ -122,7 +122,10 @@ export default function SetupPage({ onComplete }: Props) {
                 : '',
           }))
         );
-        if (result.ytdlpFound) {
+        // Auto-skip setup only when nothing is missing. A partial ffmpeg install
+        // (ffmpeg present, ffprobe missing) sets needsSetup so SponsorBlock cutting
+        // gets a working ffprobe via re-download.
+        if (result.ytdlpFound && !result.needsSetup) {
           onComplete();
           return;
         }
