@@ -37,16 +37,6 @@ export interface SubtitleOptions {
   includeAuto: boolean;
 }
 
-export interface SubtitleLanguageEntry {
-  code: string;
-  name: string;
-}
-
-export interface SubtitleLanguages {
-  manual: SubtitleLanguageEntry[];
-  auto: SubtitleLanguageEntry[];
-}
-
 // Playlist item from yt-dlp --flat-playlist
 export interface PlaylistItem {
   id: string;

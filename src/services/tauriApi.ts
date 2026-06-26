@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { VideoInfo, SubtitleLanguages, PlaylistInfo } from '../types/video';
+import type { VideoInfo, PlaylistInfo } from '../types/video';
 import type { DownloadOptions, DownloadJob, QueueState, QueuePatch, ProgressPayload } from '../types/download';
 import type { AppSettings, BinaryStatus } from '../types/settings';
 
@@ -14,10 +14,6 @@ export const IS_TAURI: boolean = typeof window !== 'undefined' &&
 
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
   return invoke<VideoInfo>('get_video_info', { url });
-}
-
-export async function getSubtitleLanguages(url: string): Promise<SubtitleLanguages> {
-  return invoke<SubtitleLanguages>('get_subtitle_langs', { url });
 }
 
 export async function getPlaylistInfo(url: string): Promise<PlaylistInfo> {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -12,7 +12,6 @@ import {
   FormControlLabel,
   Checkbox,
   Collapse,
-  CircularProgress,
 } from '@mui/material';
 import {
   Audiotrack,
@@ -23,8 +22,7 @@ import {
   Image as ThumbnailIcon,
   Block as SponsorIcon,
 } from '@mui/icons-material';
-import { getSubtitleLanguages } from '../../services/tauriApi';
-import type { VideoInfo, SubtitleOptions } from '../../types/video';
+import type { VideoInfo, SubtitleOptions, SubtitleTrack } from '../../types/video';
 import type {
   AdvancedOptions,
   VideoCodec,
@@ -113,35 +111,28 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
         : [...advanced.sponsorblockCategories, cat],
     });
   };
-  const [subtitleLangs, setSubtitleLangs] = useState<{ code: string; name: string }[]>([]);
-  const [loadingLangs, setLoadingLangs] = useState(false);
-
   const qualities = videoInfo.availableQualities.map((q) => ({
     label: qualityLabelMap[q] || q,
     value: q,
   }));
 
-  // Load subtitle languages when subtitle panel opens
-  useEffect(() => {
-    if (subtitleMode === 'off' || audioOnly) return;
-    setLoadingLangs(true);
-    const url = `https://www.youtube.com/watch?v=${videoInfo.videoId}`;
-    getSubtitleLanguages(url)
-      .then((data) => {
-        const seen = new Set<string>();
-        const merged: { code: string; name: string }[] = [];
-        for (const entry of [...data.manual, ...data.auto]) {
-          if (!seen.has(entry.code)) {
-            seen.add(entry.code);
-            merged.push(entry);
-          }
-        }
-        setSubtitleLangs(merged.length ? merged : [{ code: 'en', name: 'English' }]);
-      })
-      .catch(() => setSubtitleLangs([{ code: 'en', name: 'English' }]))
-      .finally(() => setLoadingLangs(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtitleMode, audioOnly]);
+  // Subtitle languages are already in videoInfo — derive them instead of
+  // re-fetching (avoids a second full yt-dlp subprocess). Manual tracks first,
+  // then automatic captions for codes not already covered.
+  const subtitleLangs = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: { code: string; name: string }[] = [];
+    const add = (rec: Record<string, SubtitleTrack[]>) => {
+      for (const [code, tracks] of Object.entries(rec)) {
+        if (seen.has(code)) continue;
+        seen.add(code);
+        merged.push({ code, name: tracks[0]?.name || code });
+      }
+    };
+    add(videoInfo.subtitles);
+    add(videoInfo.automaticCaptions);
+    return merged.length ? merged : [{ code: 'en', name: 'English' }];
+  }, [videoInfo.subtitles, videoInfo.automaticCaptions]);
 
   const handleSubtitleModeChange = (_: unknown, mode: string | null) => {
     if (!mode) return;
@@ -405,12 +396,7 @@ const FormatSelector: React.FC<FormatSelectorProps> = ({
                   onChange={(e) =>
                     setSubtitleOptions({ ...subtitleOptions, language: e.target.value })
                   }
-                  disabled={disabled || loadingLangs}
-                  startAdornment={
-                    loadingLangs
-                      ? <CircularProgress size={14} sx={{ mr: 1, color: 'text.secondary' }} />
-                      : null
-                  }
+                  disabled={disabled}
                   sx={{
                     bgcolor: 'transparent',
                     border: '2px solid',
