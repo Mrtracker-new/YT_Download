@@ -1,4 +1,5 @@
 use crate::commands::video::{PlaylistInfo, PlaylistItem, SubtitleTrack, VideoFormat, VideoInfo};
+use crate::security::url_validator::sanitize_for_logging;
 use crate::services::binary_resolver::resolve_ytdlp;
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
@@ -175,7 +176,7 @@ pub async fn fetch_playlist_info(url: &str) -> Result<PlaylistInfo> {
     if stdout.trim().is_empty() {
         return Err(anyhow!(
             "yt-dlp returned no output. The URL may not be a playlist, or the playlist may be private/unavailable.\nURL: {}",
-            url
+            sanitize_for_logging(url)
         ));
     }
 
