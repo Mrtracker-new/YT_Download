@@ -15,12 +15,42 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # release-please bumps the version in src-tauri/Cargo.toml (via extra-files)
+  # but never touches Cargo.lock, so the lockfile's package version drifts on
+  # main after every release. Re-pin it with --precise and commit it back.
+  sync-lockfile:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Re-pin Cargo.lock to released version
+        working-directory: ./src-tauri
+        run: cargo update -p yt-downloader-tauri --precise "${{ needs.release-please.outputs.version }}"
+      - name: Commit Cargo.lock
+        run: |
+          if git diff --quiet -- src-tauri/Cargo.lock; then
+            echo "Cargo.lock already in sync, nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/Cargo.lock
+          git commit -m "chore: sync Cargo.lock to ${{ needs.release-please.outputs.tag_name }}"
+          git push origin main
 
   # release-please pushes the tag with GITHUB_TOKEN, which does NOT trigger
   # tag-push workflows. So dispatch the build explicitly here instead.
