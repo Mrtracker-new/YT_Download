@@ -7,6 +7,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::watch;
 
+use crate::security::url_validator::sanitize_for_logging;
 use crate::services::binary_resolver::{resolve_ffmpeg, resolve_ytdlp};
 use crate::services::download_manager::job::ControlSignal;
 use crate::services::ytdlp::progress::{parse_progress_line, ProcessingStatus};
@@ -326,9 +327,10 @@ pub async fn run_download(
     cmd_args.push(args.url.clone());
 
     log::info!(
-        "yt-dlp job {} starting ({} args)",
+        "yt-dlp job {} starting ({} args): {}",
         args.job_id,
-        cmd_args.len()
+        cmd_args.len(),
+        sanitize_for_logging(&args.url)
     );
 
     // ── Spawn yt-dlp ──────────────────────────────────────────────────────────
