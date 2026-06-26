@@ -174,8 +174,17 @@ pub async fn run_download(
             audio_quality_arg(&audio_format, &args.audio_quality),
         ]);
         // Cover art: embed the thumbnail into the audio container.
-        if args.embed_thumbnail {
+        // yt-dlp can only embed into certain containers — WAV has no standard
+        // cover-art chunk, so requesting it there makes postprocessing fail.
+        // Skip the flag for unsupported formats so the download still succeeds.
+        const THUMB_AUDIO_OK: &[&str] = &["mp3", "m4a", "mka", "ogg", "opus", "flac"];
+        if args.embed_thumbnail && THUMB_AUDIO_OK.contains(&audio_format.as_str()) {
             cmd_args.push("--embed-thumbnail".to_string());
+        } else if args.embed_thumbnail {
+            log::info!(
+                "Skipping thumbnail embed: {} does not support cover art",
+                audio_format
+            );
         }
     } else {
         // Optional codec constraint (e.g. avc1/vp9/av01) injected into each video selector.
