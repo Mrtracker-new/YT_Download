@@ -92,7 +92,7 @@ const Sidebar: React.FC = () => {
             <Tooltip key={item.path} title={item.label} placement="right">
               <NavLink
                 to={item.path}
-                style={{ textDecoration: 'none' }}
+                style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <Box
                   sx={{
