@@ -25,6 +25,13 @@ impl Database {
 
         let db = Self { conn };
         db.run_migrations()?;
+
+        // Enforce the history retention policy on startup so stale rows are
+        // pruned even if the app was closed when they expired.
+        if let Ok(s) = db.get_settings() {
+            let _ = db.prune_history(s.keep_history, s.history_retention_days);
+        }
+
         Ok(db)
     }
 
@@ -168,12 +175,21 @@ impl Database {
         )?;
         self.set_setting("cookieBrowser", &s.cookie_browser)?;
         self.set_setting("cookieFile", &s.cookie_file)?;
+
+        // Apply the retention policy immediately so changing these settings
+        // takes effect without waiting for the next startup.
+        self.prune_history(s.keep_history, s.history_retention_days)?;
         Ok(())
     }
 
     // ─── History ──────────────────────────────────────────────────────────────
 
     pub fn insert_history(&self, item: &HistoryItem) -> Result<()> {
+        // Respect the "keep history" toggle — don't record when disabled.
+        if self.get_setting("keepHistory")?.as_deref() == Some("false") {
+            return Ok(());
+        }
+
         self.conn.execute(
             "INSERT OR REPLACE INTO history
                 (job_id, url, title, uploader, thumbnail, duration, file_path, file_size,
@@ -240,6 +256,26 @@ impl Database {
 
     pub fn clear_history(&self) -> Result<()> {
         self.conn.execute("DELETE FROM history", [])?;
+        Ok(())
+    }
+
+    /// Enforces the history retention policy.
+    /// - `keep_history == false` → wipe all history.
+    /// - `retention_days > 0`    → drop rows older than that many days.
+    /// - `retention_days == 0`   → keep forever (no-op when keeping history).
+    pub fn prune_history(&self, keep_history: bool, retention_days: u32) -> Result<()> {
+        if !keep_history {
+            self.conn.execute("DELETE FROM history", [])?;
+            return Ok(());
+        }
+
+        if retention_days > 0 {
+            let cutoff =
+                chrono::Utc::now().timestamp_millis() - (retention_days as i64) * 86_400_000;
+            self.conn
+                .execute("DELETE FROM history WHERE created_at < ?1", params![cutoff])?;
+        }
+
         Ok(())
     }
 }
