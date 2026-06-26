@@ -2,6 +2,10 @@ use anyhow::{anyhow, Result};
 use url::Url;
 
 /// Allowed hostnames that yt-dlp supports and we expose through the app.
+///
+/// NOTE: Keep this list in sync with SUPPORTED_DOMAINS in
+/// src/utils/validators.ts — this backend list is the authority; the
+/// frontend copy only provides fast client-side UX feedback.
 const ALLOWED_DOMAINS: &[&str] = &[
     "youtube.com",
     "www.youtube.com",

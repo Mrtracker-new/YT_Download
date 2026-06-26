@@ -3,6 +3,9 @@
  * The Rust backend also validates — this is just for fast UX feedback.
  */
 
+// NOTE: Keep this list in sync with ALLOWED_DOMAINS in
+// src-tauri/src/security/url_validator.rs — the backend is the authority,
+// this copy only exists for fast client-side UX feedback.
 const SUPPORTED_DOMAINS = [
   'youtube.com',
   'youtu.be',
