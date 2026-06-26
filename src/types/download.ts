@@ -30,7 +30,6 @@ export interface DownloadJob {
   quality: string;        // e.g. '1080p', 'best', 'audio'
   audioOnly: boolean;
   subtitleOptions: SubtitleOptions;
-  outputPath?: string;
   filePath?: string;      // set on completion
   fileSize?: number;      // bytes
   format: string;         // 'mp4' | 'mp3'
