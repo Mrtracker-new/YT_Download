@@ -1,4 +1,4 @@
-use crate::security::path_validator::validate_path;
+use crate::security::path_validator::{validate_job_id, validate_path};
 use crate::security::url_validator::validate_url;
 use crate::services::download_manager::DownloadOptions;
 use crate::AppState;
@@ -185,6 +185,7 @@ pub async fn cancel_download(
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    validate_job_id(&job_id).map_err(|e| e.to_string())?;
     let mut manager = state.download_manager.lock().await;
     manager
         .cancel_download(&job_id, &app_handle)
@@ -198,6 +199,7 @@ pub async fn pause_download(
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    validate_job_id(&job_id).map_err(|e| e.to_string())?;
     let mut manager = state.download_manager.lock().await;
     manager
         .pause_download(&job_id, &app_handle)
@@ -211,6 +213,7 @@ pub async fn resume_download(
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    validate_job_id(&job_id).map_err(|e| e.to_string())?;
     let mut manager = state.download_manager.lock().await;
     manager
         .resume_download(
@@ -229,6 +232,7 @@ pub async fn retry_download(
     state: State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    validate_job_id(&job_id).map_err(|e| e.to_string())?;
     let mut manager = state.download_manager.lock().await;
     manager
         .retry_download(
