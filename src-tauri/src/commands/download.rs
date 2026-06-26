@@ -1,3 +1,4 @@
+use crate::security::path_validator::validate_path;
 use crate::security::url_validator::validate_url;
 use crate::services::download_manager::DownloadOptions;
 use crate::AppState;
@@ -115,22 +116,32 @@ pub async fn start_download(
         .unwrap_or_default();
     drop(db);
 
+    // Resolve the trusted base download directory (allowed root for path validation).
+    let base_dir = if !download_dir.is_empty() {
+        download_dir.clone()
+    } else {
+        dirs::download_dir()
+            .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
+            .to_string_lossy()
+            .to_string()
+    };
+
+    // Per-download override, if any; otherwise the base directory.
     let output_dir = opts
         .output_dir
         .filter(|d| !d.is_empty())
-        .or_else(|| {
-            if !download_dir.is_empty() {
-                Some(download_dir.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| {
-            dirs::download_dir()
-                .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
-                .to_string_lossy()
-                .to_string()
-        });
+        .unwrap_or_else(|| base_dir.clone());
+
+    // canonicalize() requires the paths to exist, so create them before validating.
+    std::fs::create_dir_all(&base_dir).map_err(|e| format!("Cannot create base dir: {}", e))?;
+    std::fs::create_dir_all(&output_dir)
+        .map_err(|e| format!("Cannot create output dir: {}", e))?;
+
+    // Reject path traversal that escapes the trusted base directory.
+    let output_dir = validate_path(&output_dir, &base_dir)
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .to_string();
 
     let advanced = opts.advanced.unwrap_or_default();
 
