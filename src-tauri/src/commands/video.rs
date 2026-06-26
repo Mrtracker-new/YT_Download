@@ -1,9 +1,7 @@
 use crate::security::url_validator::validate_url;
 use crate::services::ytdlp::info::{fetch_playlist_info, fetch_video_info};
-use crate::AppState;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tauri::State;
 
 // ─── Types mirroring the frontend TypeScript types ────────────────────────────
 
@@ -83,7 +81,7 @@ pub struct PlaylistInfo {
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn get_video_info(url: String, _state: State<'_, AppState>) -> Result<VideoInfo, String> {
+pub async fn get_video_info(url: String) -> Result<VideoInfo, String> {
     // Validate URL first (security)
     let validated_url = validate_url(&url).map_err(|e| e.to_string())?;
 
@@ -95,10 +93,7 @@ pub async fn get_video_info(url: String, _state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
-pub async fn get_subtitle_langs(
-    url: String,
-    _state: State<'_, AppState>,
-) -> Result<SubtitleLanguages, String> {
+pub async fn get_subtitle_langs(url: String) -> Result<SubtitleLanguages, String> {
     let validated_url = validate_url(&url).map_err(|e| e.to_string())?;
 
     let info = fetch_video_info(&validated_url)
@@ -138,10 +133,7 @@ pub async fn get_subtitle_langs(
 }
 
 #[tauri::command]
-pub async fn get_playlist_info(
-    url: String,
-    _state: State<'_, AppState>,
-) -> Result<PlaylistInfo, String> {
+pub async fn get_playlist_info(url: String) -> Result<PlaylistInfo, String> {
     let validated_url = validate_url(&url).map_err(|e| e.to_string())?;
 
     let info = fetch_playlist_info(&validated_url)
