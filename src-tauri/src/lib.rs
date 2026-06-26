@@ -37,7 +37,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Video commands
             commands::video::get_video_info,
-            commands::video::get_subtitle_langs,
             commands::video::get_playlist_info,
             // Download commands
             commands::download::start_download,
