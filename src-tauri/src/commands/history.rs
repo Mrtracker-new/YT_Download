@@ -1,3 +1,4 @@
+use crate::security::path_validator::validate_job_id;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -36,6 +37,7 @@ pub async fn get_history(
 
 #[tauri::command]
 pub async fn delete_history_item(job_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    validate_job_id(&job_id).map_err(|e| e.to_string())?;
     let db = state.db.lock().await;
     db.delete_history_item(&job_id).map_err(|e| e.to_string())
 }
