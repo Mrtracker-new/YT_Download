@@ -134,8 +134,7 @@ pub async fn start_download(
 
     // canonicalize() requires the paths to exist, so create them before validating.
     std::fs::create_dir_all(&base_dir).map_err(|e| format!("Cannot create base dir: {}", e))?;
-    std::fs::create_dir_all(&output_dir)
-        .map_err(|e| format!("Cannot create output dir: {}", e))?;
+    std::fs::create_dir_all(&output_dir).map_err(|e| format!("Cannot create output dir: {}", e))?;
 
     // Reject path traversal that escapes the trusted base directory.
     let output_dir = validate_path(&output_dir, &base_dir)
