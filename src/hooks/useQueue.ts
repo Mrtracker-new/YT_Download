@@ -29,7 +29,7 @@ const DEFAULT_SUBTITLE_OPTIONS: SubtitleOptions = {
  * Mount ONCE at the App level. No-ops safely when running outside Tauri (e.g., browser).
  *
  * Event flow (two separate data shapes):
- *   download://progress  → updateProgress    (guards paused/cancelled status)
+ *   download://progress  → updateProgress    (guards paused/cancelled/completed/failed status)
  *   download://complete  → markComplete
  *   download://error     → markError
  *   download://cancelled → markCancelled     (emitted AFTER process is dead)

@@ -46,10 +46,17 @@ export const useQueueStore = create<QueueStore>()(
       set((state) => {
         const job = state.jobs.find((j) => j.jobId === payload.jobId);
         if (job) {
-          // Ignore progress events for paused/cancelled jobs.
+          // Ignore progress events for jobs in a terminal/held status.
           // These arrive as in-flight events after the control signal was sent
-          // but before the process was fully killed.
-          if (job.status === 'paused' || job.status === 'cancelled') return;
+          // (or after completion/failure) but before the process was fully
+          // killed — a late event must not revert the status back to downloading.
+          if (
+            job.status === 'paused' ||
+            job.status === 'cancelled' ||
+            job.status === 'completed' ||
+            job.status === 'failed'
+          )
+            return;
           job.progress = payload.progress;
           job.speed = payload.speed;
           job.eta = payload.eta;
