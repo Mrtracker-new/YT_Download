@@ -112,21 +112,12 @@ function showYtdlpUpdateToast(info: YtdlpUpdateInfo, onUpdate: () => void) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
           <button
+            className="sketch-button"
             onClick={() => {
               toast.dismiss(t.id);
               onUpdate();
             }}
-            style={{
-              flex: 1,
-              padding: '6px 10px',
-              cursor: 'pointer',
-              fontFamily: '"Kalam", cursive',
-              fontWeight: 700,
-              color: '#fff',
-              background: '#ff4d4d',
-              border: '2px solid #2d2d2d',
-              borderRadius: '255px 15px 225px 15px/15px 225px 15px 255px',
-            }}
+            style={{ flex: 1, padding: '6px 10px', fontSize: '0.95rem' }}
           >
             Update yt-dlp
           </button>

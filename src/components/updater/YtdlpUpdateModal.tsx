@@ -173,7 +173,12 @@ export function YtdlpUpdateModal({ ytdlpUpdate, onDone }: Props) {
               <Box component="button" onClick={onDone} sx={sketchButton('#6B7280')}>
                 Close
               </Box>
-              <Box component="button" onClick={run} sx={sketchButton('#ff4d4d', true)}>
+              <Box
+                component="button"
+                className="sketch-button"
+                onClick={run}
+                sx={{ fontSize: '0.95rem', px: 2, py: 0.75 }}
+              >
                 Retry
               </Box>
             </>

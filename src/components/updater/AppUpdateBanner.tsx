@@ -99,8 +99,9 @@ export function AppUpdateBanner() {
           </Box>
           <Box
             component="button"
+            className="sketch-button"
             onClick={() => openReleasePage(appUpdate.releaseUrl).catch(console.error)}
-            sx={{ ...sketchButton('#fff'), bgcolor: 'primary.main', borderColor: 'primary.main' }}
+            sx={{ fontSize: '0.85rem', px: 1.5, py: 0.5 }}
           >
             View Release
           </Box>
