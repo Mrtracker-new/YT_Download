@@ -41,14 +41,6 @@ const DEFAULT_SUBTITLE_OPTIONS: SubtitleOptions = {
  * full QueueState. Always use applyQueuePatch for events, setQueueState for getQueue().
  */
 export function useQueue() {
-  const updateProgress = useQueueStore((s) => s.updateProgress);
-  const markComplete = useQueueStore((s) => s.markComplete);
-  const markError = useQueueStore((s) => s.markError);
-  const markCancelled = useQueueStore((s) => s.markCancelled);
-  const markPaused = useQueueStore((s) => s.markPaused);
-  const markResumed = useQueueStore((s) => s.markResumed);
-  const applyQueuePatch = useQueueStore((s) => s.applyQueuePatch);
-  const setQueueState = useQueueStore((s) => s.setQueueState);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
@@ -57,6 +49,21 @@ export function useQueue() {
     let cancelled = false;
 
     const setup = async () => {
+      // Read actions via getState() rather than subscribing to them. Zustand
+      // action refs are stable, but pulling them from the store here keeps this
+      // effect's dependency array empty so it provably runs once on mount and is
+      // never re-subscribed by a future store change.
+      const {
+        updateProgress,
+        markComplete,
+        markError,
+        markCancelled,
+        markPaused,
+        markResumed,
+        applyQueuePatch,
+        setQueueState,
+      } = useQueueStore.getState();
+
       const unlisteners = await Promise.all([
         onDownloadProgress((payload) => {
           if (!cancelled) updateProgress(payload);
@@ -120,7 +127,9 @@ export function useQueue() {
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
-  }, [updateProgress, markComplete, markError, markCancelled, markPaused, markResumed, applyQueuePatch, setQueueState]);
+    // Empty deps: actions are read via getState() inside, so this effect has no
+    // reactive inputs and runs exactly once on mount.
+  }, []);
 
   return {
     jobs: useQueueStore((s) => s.jobs),
