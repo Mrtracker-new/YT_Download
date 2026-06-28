@@ -113,6 +113,8 @@ impl Database {
             "historyRetentionDays",
             "cookieBrowser",
             "cookieFile",
+            "skippedAppVersion",
+            "lastYtdlpUpdateCheck",
         ];
 
         for key in &keys {
@@ -134,6 +136,8 @@ impl Database {
                     }
                     "cookieBrowser" => settings.cookie_browser = value,
                     "cookieFile" => settings.cookie_file = value,
+                    "skippedAppVersion" => settings.skipped_app_version = value,
+                    "lastYtdlpUpdateCheck" => settings.last_ytdlp_update_check = value,
                     _ => {}
                 }
             }
@@ -175,6 +179,8 @@ impl Database {
         )?;
         self.set_setting("cookieBrowser", &s.cookie_browser)?;
         self.set_setting("cookieFile", &s.cookie_file)?;
+        self.set_setting("skippedAppVersion", &s.skipped_app_version)?;
+        self.set_setting("lastYtdlpUpdateCheck", &s.last_ytdlp_update_check)?;
 
         // Apply the retention policy immediately so changing these settings
         // takes effect without waiting for the next startup.

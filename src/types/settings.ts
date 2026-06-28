@@ -30,6 +30,11 @@ export interface AppSettings {
   // Optional cookies.txt file path. Takes precedence over cookieBrowser.
   // Bulletproof fallback when browser cookie extraction fails (Windows Chrome/Edge).
   cookieFile: string;
+
+  // Updater: app version the user chose to skip (e.g. "1.2.0"). Empty = none.
+  skippedAppVersion: string;
+  // Updater: ISO timestamp of last yt-dlp check. Kept for future use.
+  lastYtdlpUpdateCheck: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -45,6 +50,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   historyRetentionDays: 30,
   cookieBrowser: 'none',
   cookieFile: '',
+  skippedAppVersion: '',
+  lastYtdlpUpdateCheck: '',
 };
 
 export interface BinaryInfo {

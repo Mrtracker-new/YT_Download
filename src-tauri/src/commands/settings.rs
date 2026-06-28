@@ -22,6 +22,12 @@ pub struct AppSettings {
     /// Takes precedence over cookie_browser when non-empty. Bulletproof on Windows
     /// where browser cookie decryption can fail (Chrome/Edge App-Bound Encryption).
     pub cookie_file: String,
+    /// App version the user chose to skip (e.g. "1.2.0"). When the latest release
+    /// matches this, the update banner stays hidden. Empty = never skipped.
+    pub skipped_app_version: String,
+    /// ISO timestamp of the last yt-dlp update check. Not used for throttling
+    /// (checks are startup-only) — kept for future use.
+    pub last_ytdlp_update_check: String,
 }
 
 impl Default for AppSettings {
@@ -39,6 +45,8 @@ impl Default for AppSettings {
             history_retention_days: 30,
             cookie_browser: "none".to_string(),
             cookie_file: String::new(),
+            skipped_app_version: String::new(),
+            last_ytdlp_update_check: String::new(),
         }
     }
 }
