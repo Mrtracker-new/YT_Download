@@ -8,6 +8,42 @@ pub struct Database {
     conn: Connection,
 }
 
+/// A row of the `download_queue` table. Carries everything needed to rebuild a
+/// `DownloadJob` (display fields + full `DownloadOptions`) across an app restart.
+#[derive(Debug, Clone)]
+pub struct PersistedQueueJob {
+    pub job_id: String,
+    pub url: String,
+    pub title: String,
+    pub thumbnail: Option<String>,
+    pub uploader: Option<String>,
+    pub duration: Option<u64>,
+    pub quality: String,
+    pub audio_only: bool,
+    pub format: String,
+    pub status: String,
+    pub progress: f64,
+    pub error: Option<String>,
+    pub file_path: Option<String>,
+    pub file_size: Option<u64>,
+    pub created_at: i64,
+    pub completed_at: Option<i64>,
+    pub subtitle_enabled: bool,
+    pub subtitle_language: String,
+    pub subtitle_mode: String,
+    pub subtitle_include_auto: bool,
+    pub output_dir: String,
+    pub file_name_template: String,
+    pub cookie_browser: String,
+    pub cookie_file: String,
+    pub video_codec: String,
+    pub audio_format: String,
+    pub audio_quality: String,
+    pub embed_thumbnail: bool,
+    /// Stored as a JSON array of strings.
+    pub sponsorblock_categories: Vec<String>,
+}
+
 impl Database {
     /// Opens (or creates) the SQLite database in the app data directory.
     pub fn new() -> Result<Self> {
@@ -69,6 +105,41 @@ impl Database {
             );
 
             CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS download_queue (
+                job_id                 TEXT PRIMARY KEY,
+                url                    TEXT NOT NULL,
+                title                  TEXT NOT NULL DEFAULT '',
+                thumbnail              TEXT,
+                uploader               TEXT,
+                duration               INTEGER,
+                quality                TEXT NOT NULL DEFAULT '',
+                audio_only             INTEGER NOT NULL DEFAULT 0,
+                format                 TEXT NOT NULL DEFAULT 'mp4',
+                status                 TEXT NOT NULL DEFAULT 'queued',
+                progress               REAL NOT NULL DEFAULT 0,
+                error                  TEXT,
+                file_path              TEXT,
+                file_size              INTEGER,
+                created_at             INTEGER NOT NULL,
+                completed_at           INTEGER,
+                -- DownloadOptions (everything needed to re-run the job)
+                subtitle_enabled       INTEGER NOT NULL DEFAULT 0,
+                subtitle_language      TEXT NOT NULL DEFAULT '',
+                subtitle_mode          TEXT NOT NULL DEFAULT '',
+                subtitle_include_auto  INTEGER NOT NULL DEFAULT 0,
+                output_dir             TEXT NOT NULL DEFAULT '',
+                file_name_template     TEXT NOT NULL DEFAULT '',
+                cookie_browser         TEXT NOT NULL DEFAULT '',
+                cookie_file            TEXT NOT NULL DEFAULT '',
+                video_codec            TEXT NOT NULL DEFAULT '',
+                audio_format           TEXT NOT NULL DEFAULT '',
+                audio_quality          TEXT NOT NULL DEFAULT '',
+                embed_thumbnail        INTEGER NOT NULL DEFAULT 0,
+                sponsorblock_categories TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_queue_created_at ON download_queue(created_at DESC);
         ",
         )?;
         Ok(())
@@ -263,6 +334,115 @@ impl Database {
     pub fn clear_history(&self) -> Result<()> {
         self.conn.execute("DELETE FROM history", [])?;
         Ok(())
+    }
+
+    // ─── Download queue (persisted across restarts) ─────────────────────────────
+
+    /// Insert or update a queued/active/paused job so it survives an app restart.
+    pub fn upsert_queue_job(&self, j: &PersistedQueueJob) -> Result<()> {
+        let categories = serde_json::to_string(&j.sponsorblock_categories)
+            .unwrap_or_else(|_| "[]".to_string());
+        self.conn.execute(
+            "INSERT OR REPLACE INTO download_queue
+                (job_id, url, title, thumbnail, uploader, duration, quality, audio_only,
+                 format, status, progress, error, file_path, file_size, created_at, completed_at,
+                 subtitle_enabled, subtitle_language, subtitle_mode, subtitle_include_auto,
+                 output_dir, file_name_template, cookie_browser, cookie_file, video_codec,
+                 audio_format, audio_quality, embed_thumbnail, sponsorblock_categories)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,
+                     ?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29)",
+            params![
+                j.job_id,
+                j.url,
+                j.title,
+                j.thumbnail,
+                j.uploader,
+                j.duration.map(|d| d as i64),
+                j.quality,
+                j.audio_only as i32,
+                j.format,
+                j.status,
+                j.progress,
+                j.error,
+                j.file_path,
+                j.file_size.map(|s| s as i64),
+                j.created_at,
+                j.completed_at,
+                j.subtitle_enabled as i32,
+                j.subtitle_language,
+                j.subtitle_mode,
+                j.subtitle_include_auto as i32,
+                j.output_dir,
+                j.file_name_template,
+                j.cookie_browser,
+                j.cookie_file,
+                j.video_codec,
+                j.audio_format,
+                j.audio_quality,
+                j.embed_thumbnail as i32,
+                categories,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Remove a job from the persisted queue (e.g. completed or cancelled).
+    pub fn delete_queue_job(&self, job_id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM download_queue WHERE job_id = ?1", params![job_id])?;
+        Ok(())
+    }
+
+    /// Load every persisted queue job (oldest first, so queue order is preserved).
+    pub fn load_queue_jobs(&self) -> Result<Vec<PersistedQueueJob>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT job_id, url, title, thumbnail, uploader, duration, quality, audio_only,
+                    format, status, progress, error, file_path, file_size, created_at, completed_at,
+                    subtitle_enabled, subtitle_language, subtitle_mode, subtitle_include_auto,
+                    output_dir, file_name_template, cookie_browser, cookie_file, video_codec,
+                    audio_format, audio_quality, embed_thumbnail, sponsorblock_categories
+             FROM download_queue
+             ORDER BY created_at ASC",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            let categories_json: String = row.get(28)?;
+            Ok(PersistedQueueJob {
+                job_id: row.get(0)?,
+                url: row.get(1)?,
+                title: row.get(2)?,
+                thumbnail: row.get(3)?,
+                uploader: row.get(4)?,
+                duration: row.get::<_, Option<i64>>(5)?.map(|d| d as u64),
+                quality: row.get(6)?,
+                audio_only: row.get::<_, i32>(7)? != 0,
+                format: row.get(8)?,
+                status: row.get(9)?,
+                progress: row.get(10)?,
+                error: row.get(11)?,
+                file_path: row.get(12)?,
+                file_size: row.get::<_, Option<i64>>(13)?.map(|s| s as u64),
+                created_at: row.get(14)?,
+                completed_at: row.get(15)?,
+                subtitle_enabled: row.get::<_, i32>(16)? != 0,
+                subtitle_language: row.get(17)?,
+                subtitle_mode: row.get(18)?,
+                subtitle_include_auto: row.get::<_, i32>(19)? != 0,
+                output_dir: row.get(20)?,
+                file_name_template: row.get(21)?,
+                cookie_browser: row.get(22)?,
+                cookie_file: row.get(23)?,
+                video_codec: row.get(24)?,
+                audio_format: row.get(25)?,
+                audio_quality: row.get(26)?,
+                embed_thumbnail: row.get::<_, i32>(27)? != 0,
+                sponsorblock_categories: serde_json::from_str(&categories_json)
+                    .unwrap_or_default(),
+            })
+        })?;
+
+        let result: rusqlite::Result<Vec<_>> = rows.collect();
+        Ok(result?)
     }
 
     /// Enforces the history retention policy.

@@ -7,7 +7,7 @@ use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 
 use super::job::{ControlSignal, DownloadJob, DownloadOptions, JobStatus};
-use crate::database::Database;
+use crate::database::{Database, PersistedQueueJob};
 use crate::services::ytdlp::download::{
     run_download, CompleteEventPayload, DownloadArgs, ErrorEventPayload, ResumedEventPayload,
 };
@@ -43,22 +43,78 @@ pub struct DownloadManager {
     active_handles: HashMap<String, JoinHandle<()>>,
     max_concurrent: usize,
     queue_order: Vec<String>,
-}
-
-impl Default for DownloadManager {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// Database handle for persisting queue state across app restarts.
+    db: Arc<Mutex<Database>>,
 }
 
 impl DownloadManager {
-    pub fn new() -> Self {
+    pub fn new(db: Arc<Mutex<Database>>) -> Self {
         Self {
             jobs: HashMap::new(),
             active_handles: HashMap::new(),
             max_concurrent: 3,
             queue_order: Vec::new(),
+            db,
         }
+    }
+
+    /// Restore persisted jobs from the database on startup.
+    ///
+    /// Jobs that were actively downloading when the app closed are marked Failed
+    /// (yt-dlp can't continue mid-stream). Queued/paused/failed jobs are restored
+    /// as-is. Terminal completed/cancelled rows are dropped. Call `advance_queue`
+    /// afterwards to auto-start any restored queued jobs.
+    pub async fn restore(&mut self) {
+        let persisted = {
+            let db = self.db.lock().await;
+            db.load_queue_jobs().unwrap_or_default()
+        };
+
+        for p in persisted {
+            // Completed/cancelled jobs are terminal — don't re-add; prune their rows.
+            if matches!(p.status.as_str(), "completed" | "cancelled") {
+                let db = self.db.lock().await;
+                let _ = db.delete_queue_job(&p.job_id);
+                continue;
+            }
+
+            let job = DownloadJob::from_persisted(p);
+            let job_id = job.job_id.clone();
+
+            // Re-persist so an interrupted (now Failed) status is reflected on disk.
+            {
+                let snap = job.to_persisted();
+                let db = self.db.lock().await;
+                let _ = db.upsert_queue_job(&snap);
+            }
+
+            self.queue_order.push(job_id.clone());
+            self.jobs.insert(job_id, job);
+        }
+
+        // Pick up the configured concurrency limit.
+        let db = self.db.lock().await;
+        if let Ok(settings) = db.get_settings() {
+            self.max_concurrent = (settings.max_concurrent_downloads as usize).max(1);
+        }
+    }
+
+    // ── Persistence helpers ─────────────────────────────────────────────────────
+
+    /// Upsert a single job's current state into the persisted queue table.
+    async fn persist_job(&self, job_id: &str) {
+        let snap = match self.jobs.get(job_id) {
+            Some(j) => j.to_persisted(),
+            None => return,
+        };
+        let db = self.db.lock().await;
+        let _ = db.upsert_queue_job(&snap);
+    }
+
+    /// Remove a job from the persisted queue table.
+    async fn unpersist_job(&self, job_id: &str) {
+        let db = self.db.lock().await;
+        let _ = db.delete_queue_job(job_id);
     }
 
     pub fn active_count(&self) -> usize {
@@ -139,6 +195,10 @@ impl DownloadManager {
             }
         }
 
+        // Persist as queued BEFORE advancing — if advance starts it, the spawned
+        // task upserts the downloading status afterwards.
+        self.persist_job(&job_id).await;
+
         self.advance_queue(app_handle.clone(), db, self_arc);
         self.emit_queue_updated(&app_handle);
         Ok(())
@@ -204,6 +264,8 @@ impl DownloadManager {
         job.status = JobStatus::Downloading;
         let opts = job.opts.clone();
         let jid = job_id.to_string();
+        // Snapshot the now-downloading state to persist at the start of the task.
+        let downloading_snap = job.to_persisted();
 
         // Create a fresh control channel for this download attempt.
         // Initial value is Run — the process starts immediately.
@@ -212,6 +274,9 @@ impl DownloadManager {
         job.control_tx = control_tx;
 
         let handle = tokio::spawn(async move {
+            // Persist the downloading status so a restart knows this job was active.
+            persist_snapshot(&db, &downloading_snap).await;
+
             let result = run_download(
                 DownloadArgs {
                     job_id: jid.clone(),
@@ -271,6 +336,8 @@ impl DownloadManager {
                     }
 
                     let db_lock = db.lock().await;
+                    // Job is finished — drop it from the persisted queue (now in history).
+                    let _ = db_lock.delete_queue_job(&jid);
                     let _ = db_lock.insert_history(&crate::commands::history::HistoryItem {
                         job_id: jid.clone(),
                         url: opts.url.clone(),
@@ -314,6 +381,7 @@ impl DownloadManager {
                             // Do NOT advance queue here — the paused job should keep
                             // its conceptual position; advance only triggers when
                             // the user resumes or cancels.
+                            mgr.persist_job(&jid).await;
                             mgr.emit_queue_updated(&app_handle);
                         }
 
@@ -322,6 +390,7 @@ impl DownloadManager {
                         "__cancelled__" => {
                             let mut mgr = self_arc.lock().await;
                             mgr.active_handles.remove(&jid);
+                            mgr.unpersist_job(&jid).await;
                             mgr.advance_queue(app_handle.clone(), db.clone(), self_arc.clone());
                             mgr.emit_queue_updated(&app_handle);
                         }
@@ -343,6 +412,9 @@ impl DownloadManager {
                                     job.status = JobStatus::Failed;
                                     job.error = Some(error_msg);
                                 }
+                                // Keep the failed job persisted so it survives a restart
+                                // and the user can retry it later.
+                                mgr.persist_job(&jid).await;
                                 mgr.advance_queue(app_handle.clone(), db.clone(), self_arc.clone());
                                 mgr.emit_queue_updated(&app_handle);
                             }
@@ -383,6 +455,8 @@ impl DownloadManager {
         } else {
             // Queued or already stopped — cancel directly
             job.status = JobStatus::Cancelled;
+            // No active task to clean up the persisted row — do it here.
+            self.unpersist_job(job_id).await;
             // Emit the event ourselves since there's no task to do it
             let _ = app_handle.emit(
                 "download://cancelled",
@@ -465,6 +539,9 @@ impl DownloadManager {
         job.speed = String::new();
         job.eta = String::new();
 
+        // Persist the requeued state so a restart keeps it queued.
+        self.persist_job(job_id).await;
+
         // Emit resumed event so frontend can update the progress bar immediately
         let _ = app_handle.emit(
             "download://resumed",
@@ -526,6 +603,9 @@ impl DownloadManager {
         job.speed = String::new();
         job.eta = String::new();
 
+        // Persist the requeued state so a restart keeps it queued.
+        self.persist_job(job_id).await;
+
         let lingering_handle = self.active_handles.remove(job_id);
         self.emit_queue_updated(&app_handle);
 
@@ -541,4 +621,13 @@ impl DownloadManager {
 
         Ok(())
     }
+}
+
+// ─── Free persistence helper (for use inside spawned tasks) ─────────────────────
+
+/// Upsert a pre-built snapshot. Used by the download task where the manager lock
+/// is not held (so `DownloadManager::persist_job` isn't accessible).
+async fn persist_snapshot(db: &Arc<Mutex<Database>>, snap: &PersistedQueueJob) {
+    let db = db.lock().await;
+    let _ = db.upsert_queue_job(snap);
 }
