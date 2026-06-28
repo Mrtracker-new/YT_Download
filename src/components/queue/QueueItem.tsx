@@ -86,7 +86,7 @@ const QueueItem: React.FC<QueueItemProps> = ({ job }) => {
 
   const handleOpenFolder  = async () => {
     if (job.filePath) {
-      const dir = job.filePath.substring(0, job.filePath.lastIndexOf('\\'));
+      const dir = job.filePath.replace(/[\\/][^\\/]*$/, '');
       await openFolder(dir);
     }
   };
