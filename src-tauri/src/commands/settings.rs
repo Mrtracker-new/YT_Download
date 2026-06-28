@@ -1,3 +1,4 @@
+use crate::security::path_validator::validate_filename_template;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -63,6 +64,7 @@ pub async fn save_settings(
     settings: AppSettings,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    validate_filename_template(&settings.file_name_template).map_err(|e| e.to_string())?;
     let db = state.db.lock().await;
     db.save_settings(&settings).map_err(|e| e.to_string())
 }
