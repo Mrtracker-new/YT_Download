@@ -1,9 +1,10 @@
 import React from 'react';
 import { Box, Container, Typography } from '@mui/material';
-import { DeleteSweep as ClearIcon } from '@mui/icons-material';
+import { DeleteSweep as ClearIcon, WarningAmber as WarningAmberIcon } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueueStore } from '../store/queueStore';
 import QueueItem from '../components/queue/QueueItem';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const QueuePage: React.FC = () => {
   const jobs = useQueueStore((s) => s.jobs);
@@ -84,7 +85,41 @@ const QueuePage: React.FC = () => {
                 transition={{ duration: 0.25, ease: 'easeOut' }}
                 layout
               >
-                <QueueItem job={job} />
+                {/* Per-item boundary: a single malformed job renders an inline
+                    fallback instead of crashing the whole queue to the top-level
+                    boundary. */}
+                <ErrorBoundary
+                  fallback={
+                    <Box
+                      sx={{
+                        // Sketch card shell — matches QueueItem, red error accent
+                        bgcolor: 'background.paper',
+                        borderRadius: '255px 15px 225px 15px/15px 225px 15px 255px',
+                        border: '2px solid #ff4d4d',
+                        borderLeft: '5px solid #ff4d4d',
+                        boxShadow: '4px 4px 0 0 rgba(255,77,77,0.4)',
+                        transform: 'rotate(-0.6deg)',
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        fontFamily: 'Patrick Hand',
+                      }}
+                    >
+                      <WarningAmberIcon sx={{ color: '#ff4d4d', fontSize: 28, flexShrink: 0 }} />
+                      <Box minWidth={0}>
+                        <Typography sx={{ fontFamily: 'Kalam', fontWeight: 700, color: '#ff4d4d', fontSize: '1.05rem', lineHeight: 1.2 }}>
+                          Couldn't show this download
+                        </Typography>
+                        <Typography sx={{ fontFamily: 'Patrick Hand', color: 'text.secondary', fontSize: '0.95rem' }}>
+                          Try "Clear finished" or reload the app.
+                        </Typography>
+                      </Box>
+                    </Box>
+                  }
+                >
+                  <QueueItem job={job} />
+                </ErrorBoundary>
               </motion.div>
             ))}
           </AnimatePresence>
