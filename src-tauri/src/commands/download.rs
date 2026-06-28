@@ -1,4 +1,4 @@
-use crate::security::path_validator::{validate_job_id, validate_path};
+use crate::security::path_validator::{validate_filename_template, validate_job_id, validate_path};
 use crate::security::url_validator::validate_url;
 use crate::services::download_manager::DownloadOptions;
 use crate::AppState;
@@ -106,6 +106,8 @@ pub async fn start_download(
         .get_setting("fileNameTemplate")
         .unwrap_or_default()
         .unwrap_or_else(|| "%(title)s.%(ext)s".to_string());
+    // Defense-in-depth: reject traversal in template even for pre-existing DB rows.
+    validate_filename_template(&file_name_template).map_err(|e| e.to_string())?;
     let cookie_browser = db
         .get_setting("cookieBrowser")
         .unwrap_or_default()
