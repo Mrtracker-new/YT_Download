@@ -448,6 +448,9 @@ pub async fn run_download(
     let jid_for_watcher = args.job_id.clone();
     let app_for_watcher = app_handle.clone();
     let output_dir_for_watcher = args.output_dir.clone();
+    // Actual destination parsed from stdout — may live in a subdirectory when the
+    // filename template uses %(uploader)s/%(title)s, which the top-level sweep misses.
+    let output_path_for_watcher = output_path.clone();
 
     // We need to pass the Job Object handle across the spawn boundary.
     // On Windows: wrap the raw HANDLE in a thread-safe newtype.
@@ -493,6 +496,15 @@ pub async fn run_download(
                     );
                     kill_process_tree(child_pid, watcher_job_handle);
                     cleanup_temp_files(&output_dir_for_watcher);
+                    // Also clean the actual destination tracked from stdout. This
+                    // covers subdirectory templates (e.g. %(uploader)s/%(title)s)
+                    // whose partials live below output_dir and the sweep above never
+                    // reaches.
+                    if let Some(dest) =
+                        output_path_for_watcher.lock().ok().and_then(|g| g.clone())
+                    {
+                        cleanup_tracked_destination(&dest);
+                    }
                     let _ = app_for_watcher.emit(
                         "download://cancelled",
                         CancelledEventPayload {
@@ -712,6 +724,39 @@ fn cleanup_temp_files(output_dir: &str) {
             {
                 let _ = std::fs::remove_file(&p);
                 log::debug!("Cleaned up temp file: {:?}", p);
+            }
+        }
+    }
+}
+
+/// Clean temp/partial files for a specific destination path tracked from stdout.
+///
+/// `cleanup_temp_files` only sweeps the top-level output_dir. When the filename
+/// template nests into subdirectories (e.g. `%(uploader)s/%(title)s`), yt-dlp
+/// writes partials below output_dir where that sweep never looks. This removes
+/// the destination file itself plus its common temp siblings, then sweeps the
+/// destination's parent directory for stream fragments.
+fn cleanup_tracked_destination(dest: &str) {
+    let dest_path = std::path::Path::new(dest);
+
+    // Remove the tracked file and its common temp siblings if present.
+    for candidate in [
+        dest_path.to_path_buf(),
+        std::path::PathBuf::from(format!("{dest}.part")),
+        std::path::PathBuf::from(format!("{dest}.ytdl")),
+    ] {
+        if candidate.is_file() {
+            let _ = std::fs::remove_file(&candidate);
+            log::debug!("Cleaned up tracked temp file: {:?}", candidate);
+        }
+    }
+
+    // Sweep the destination's parent directory for stream fragments and other
+    // temp files. Skip if the parent equals nothing useful (e.g. bare filename).
+    if let Some(parent) = dest_path.parent() {
+        if let Some(parent_str) = parent.to_str() {
+            if !parent_str.is_empty() {
+                cleanup_temp_files(parent_str);
             }
         }
     }
