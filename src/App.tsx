@@ -12,6 +12,7 @@ import PlaylistPage from './pages/PlaylistPage';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 import SetupPage from './components/setup/SetupPage';
+import { UpdateProvider } from './components/updater';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import DesktopMacIcon from '@mui/icons-material/DesktopMac';
 
@@ -168,7 +169,7 @@ function AppContent() {
         <SetupPage onComplete={() => setSetupDone(true)} />
       ) : (
         /* Main app */
-        <>
+        <UpdateProvider>
           <QueueListener />
           <BrowserRouter>
             <Routes>
@@ -203,7 +204,7 @@ function AppContent() {
               },
             }}
           />
-        </>
+        </UpdateProvider>
       )}
     </ThemeProvider>
   );
