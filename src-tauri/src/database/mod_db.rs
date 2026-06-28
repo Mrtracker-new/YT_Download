@@ -340,8 +340,8 @@ impl Database {
 
     /// Insert or update a queued/active/paused job so it survives an app restart.
     pub fn upsert_queue_job(&self, j: &PersistedQueueJob) -> Result<()> {
-        let categories = serde_json::to_string(&j.sponsorblock_categories)
-            .unwrap_or_else(|_| "[]".to_string());
+        let categories =
+            serde_json::to_string(&j.sponsorblock_categories).unwrap_or_else(|_| "[]".to_string());
         self.conn.execute(
             "INSERT OR REPLACE INTO download_queue
                 (job_id, url, title, thumbnail, uploader, duration, quality, audio_only,
@@ -388,8 +388,10 @@ impl Database {
 
     /// Remove a job from the persisted queue (e.g. completed or cancelled).
     pub fn delete_queue_job(&self, job_id: &str) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM download_queue WHERE job_id = ?1", params![job_id])?;
+        self.conn.execute(
+            "DELETE FROM download_queue WHERE job_id = ?1",
+            params![job_id],
+        )?;
         Ok(())
     }
 
@@ -436,8 +438,7 @@ impl Database {
                 audio_format: row.get(25)?,
                 audio_quality: row.get(26)?,
                 embed_thumbnail: row.get::<_, i32>(27)? != 0,
-                sponsorblock_categories: serde_json::from_str(&categories_json)
-                    .unwrap_or_default(),
+                sponsorblock_categories: serde_json::from_str(&categories_json).unwrap_or_default(),
             })
         })?;
 

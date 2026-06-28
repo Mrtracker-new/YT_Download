@@ -73,7 +73,6 @@ export function useUpdateChecker(): UpdateState {
 
     return () => clearTimeout(timer);
     // Intentionally run once on mount — refs keep handlers fresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dismissAppUpdate = () => setAppUpdate(null);

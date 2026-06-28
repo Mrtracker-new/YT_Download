@@ -60,7 +60,6 @@ export function YtdlpUpdateModal({ ytdlpUpdate, onDone }: Props) {
   // Kick off the download once on mount.
   useEffect(() => {
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-close 2s after a successful update.

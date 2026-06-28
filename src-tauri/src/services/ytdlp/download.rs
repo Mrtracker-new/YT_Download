@@ -516,8 +516,7 @@ pub async fn run_download(
                     // covers subdirectory templates (e.g. %(uploader)s/%(title)s)
                     // whose partials live below output_dir and the sweep above never
                     // reaches.
-                    if let Some(dest) =
-                        output_path_for_watcher.lock().ok().and_then(|g| g.clone())
+                    if let Some(dest) = output_path_for_watcher.lock().ok().and_then(|g| g.clone())
                     {
                         cleanup_tracked_destination(&dest);
                     }

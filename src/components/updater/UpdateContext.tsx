@@ -23,6 +23,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 }
 
 /** Read update state. Returns null when used outside the provider. */
+// eslint-disable-next-line react-refresh/only-export-components -- context hook co-located with its provider
 export function useUpdateContext(): UpdateState | null {
   return useContext(UpdateContext);
 }

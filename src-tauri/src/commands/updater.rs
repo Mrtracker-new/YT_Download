@@ -130,7 +130,9 @@ pub async fn check_app_update() -> Result<AppUpdateInfo, String> {
         latest_version: Some(latest),
         release_notes,
         pub_date: release.published_at,
-        release_url: release.html_url.unwrap_or_else(|| RELEASES_PAGE.to_string()),
+        release_url: release
+            .html_url
+            .unwrap_or_else(|| RELEASES_PAGE.to_string()),
     })
 }
 
