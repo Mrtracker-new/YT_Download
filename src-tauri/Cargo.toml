@@ -1,6 +1,6 @@
 [package]
 name = "yt-downloader-tauri"
-version = "1.1.1"
+version = "1.2.0"
 description = "YT Downloader - A production-grade Tauri desktop application"
 authors = ["Mrtracker"]
 edition = "2021"

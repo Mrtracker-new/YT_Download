@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0](https://github.com/Mrtracker-new/YT_Download/compare/v1.1.1...v1.2.0) (2026-06-28)
+
+
+### Features
+
+* **security:** add filename template traversal validator ([3883f26](https://github.com/Mrtracker-new/YT_Download/commit/3883f267c6e2161ea737930e8ccba488c86776bd))
+* **security:** validate filename template on download start ([785391a](https://github.com/Mrtracker-new/YT_Download/commit/785391a0ac7a053251c207b61ee5ae2d7a2c5182))
+* **security:** validate filename template on settings save ([e648b37](https://github.com/Mrtracker-new/YT_Download/commit/e648b37bd180d722adc3c08171e8c132244abf6e))
+* **settings:** add updater preference fields ([f0cd1cb](https://github.com/Mrtracker-new/YT_Download/commit/f0cd1cb6830d4ea4e375393e278e3d4b972d286f))
+* **updater:** add backend update-check commands ([40918e1](https://github.com/Mrtracker-new/YT_Download/commit/40918e1dc633e8883d6ccce090117efccdf20603))
+* **updater:** add banner, modal, and context components ([f1fbf4c](https://github.com/Mrtracker-new/YT_Download/commit/f1fbf4c490c032747a96b0e8e688fc9c9488831f))
+* **updater:** add update service and startup checker hook ([3f0f7e9](https://github.com/Mrtracker-new/YT_Download/commit/3f0f7e96f87cb340245d6c81313006db4a7834e6))
+* **updater:** mount update provider and banner ([4177eb8](https://github.com/Mrtracker-new/YT_Download/commit/4177eb853f2c2dccf3b4bcc31c522b4ad28debe7))
+
+
+### Bug Fixes
+
+* clean subdirectory partials on cancel ([9bcf4cc](https://github.com/Mrtracker-new/YT_Download/commit/9bcf4cc20efac655d59da6554462cba94ae4d296))
+* close pause/cancel race in resume_download ([be1ca5e](https://github.com/Mrtracker-new/YT_Download/commit/be1ca5e54b68d7c381b473485af1fb01ce69c8a7))
+* don't let late progress events revert terminal job status ([09e5e83](https://github.com/Mrtracker-new/YT_Download/commit/09e5e831e248c9f9f5ac708cfa3bd15c86a9e0b0))
+* ignore non-existent cookie file instead of passing bad path ([ad1aa94](https://github.com/Mrtracker-new/YT_Download/commit/ad1aa9409e1c2f58c3f9c6000b92f9d7a38c8b8b))
+* key playlist selection by index, not video id ([8b25127](https://github.com/Mrtracker-new/YT_Download/commit/8b2512793af9c915a5b7fbee50a13b73e332981a))
+* reconcile applyQueuePatch by status priority ([6101c7f](https://github.com/Mrtracker-new/YT_Download/commit/6101c7fcdea49f79d25cfa85d2f761b1e546e7c2))
+* use cross-platform path separator in handleOpenFolder ([4c075b0](https://github.com/Mrtracker-new/YT_Download/commit/4c075b03ef44cfe73a6f56fadc0550e7954d37a4))
+* wrap each queue item in a per-item error boundary ([9cd71d3](https://github.com/Mrtracker-new/YT_Download/commit/9cd71d359a4a8da053ffd0472bec481a733b60bd))
+
 ## [1.1.1](https://github.com/Mrtracker-new/YT_Download/compare/v1.1.0...v1.1.1) (2026-06-26)
 
 
