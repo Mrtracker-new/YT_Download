@@ -22,7 +22,11 @@ pub fn run() {
         Database::new().expect("Failed to initialize database"),
     ));
 
-    let download_manager = Arc::new(Mutex::new(DownloadManager::new()));
+    let download_manager = Arc::new(Mutex::new(DownloadManager::new(db.clone())));
+
+    // Handles captured by the setup hook to restore the persisted queue on launch.
+    let dm_for_setup = download_manager.clone();
+    let db_for_setup = db.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -33,6 +37,18 @@ pub fn run() {
         .manage(AppState {
             db: db.clone(),
             download_manager: download_manager.clone(),
+        })
+        .setup(move |app| {
+            // Restore the persisted download queue and auto-start any queued jobs.
+            let app_handle = app.handle().clone();
+            let dm = dm_for_setup.clone();
+            let db2 = db_for_setup.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut mgr = dm.lock().await;
+                mgr.restore().await;
+                mgr.advance_queue(app_handle, db2, dm.clone());
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Video commands
@@ -62,6 +78,11 @@ pub fn run() {
             commands::setup::check_setup,
             commands::setup::download_ytdlp,
             commands::setup::download_ffmpeg,
+            // Updater commands
+            commands::updater::check_app_update,
+            commands::updater::check_ytdlp_update,
+            commands::updater::open_release_page,
+            commands::updater::update_ytdlp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

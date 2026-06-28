@@ -1,4 +1,4 @@
-use crate::security::path_validator::{validate_job_id, validate_path};
+use crate::security::path_validator::{validate_filename_template, validate_job_id, validate_path};
 use crate::security::url_validator::validate_url;
 use crate::services::download_manager::DownloadOptions;
 use crate::AppState;
@@ -53,6 +53,16 @@ pub struct StartDownloadOptions {
     /// Advanced format options. Optional for backward compatibility — defaults applied when absent.
     #[serde(default)]
     pub advanced: Option<AdvancedOptions>,
+    // ── Display metadata from the frontend video-info fetch ────────────────────
+    // Persisted so the queue shows real titles/thumbnails after a restart.
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub thumbnail: Option<String>,
+    #[serde(default)]
+    pub uploader: Option<String>,
+    #[serde(default)]
+    pub duration: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +116,8 @@ pub async fn start_download(
         .get_setting("fileNameTemplate")
         .unwrap_or_default()
         .unwrap_or_else(|| "%(title)s.%(ext)s".to_string());
+    // Defense-in-depth: reject traversal in template even for pre-existing DB rows.
+    validate_filename_template(&file_name_template).map_err(|e| e.to_string())?;
     let cookie_browser = db
         .get_setting("cookieBrowser")
         .unwrap_or_default()
@@ -162,6 +174,10 @@ pub async fn start_download(
         audio_quality: advanced.audio_quality,
         embed_thumbnail: advanced.embed_thumbnail,
         sponsorblock_categories: advanced.sponsorblock_categories,
+        title: opts.title,
+        thumbnail: opts.thumbnail,
+        uploader: opts.uploader,
+        duration: opts.duration,
     };
 
     let mut manager = state.download_manager.lock().await;

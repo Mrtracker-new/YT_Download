@@ -10,16 +10,26 @@ import {
   onDownloadPaused,
   onDownloadResumed,
   onQueueUpdated,
+  getQueue,
   IS_TAURI,
   type UnlistenFn,
 } from '../services/tauriApi';
+import type { SubtitleOptions } from '../types/video';
+
+/** Backend get_queue omits per-download subtitle options; restored jobs use this default. */
+const DEFAULT_SUBTITLE_OPTIONS: SubtitleOptions = {
+  enabled: false,
+  language: 'en',
+  mode: 'embed',
+  includeAuto: false,
+};
 
 /**
  * Hook that subscribes to all Tauri download events and syncs them into Zustand.
  * Mount ONCE at the App level. No-ops safely when running outside Tauri (e.g., browser).
  *
  * Event flow (two separate data shapes):
- *   download://progress  → updateProgress    (guards paused/cancelled status)
+ *   download://progress  → updateProgress    (guards paused/cancelled/completed/failed status)
  *   download://complete  → markComplete
  *   download://error     → markError
  *   download://cancelled → markCancelled     (emitted AFTER process is dead)
@@ -31,13 +41,6 @@ import {
  * full QueueState. Always use applyQueuePatch for events, setQueueState for getQueue().
  */
 export function useQueue() {
-  const updateProgress = useQueueStore((s) => s.updateProgress);
-  const markComplete = useQueueStore((s) => s.markComplete);
-  const markError = useQueueStore((s) => s.markError);
-  const markCancelled = useQueueStore((s) => s.markCancelled);
-  const markPaused = useQueueStore((s) => s.markPaused);
-  const markResumed = useQueueStore((s) => s.markResumed);
-  const applyQueuePatch = useQueueStore((s) => s.applyQueuePatch);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
@@ -46,6 +49,21 @@ export function useQueue() {
     let cancelled = false;
 
     const setup = async () => {
+      // Read actions via getState() rather than subscribing to them. Zustand
+      // action refs are stable, but pulling them from the store here keeps this
+      // effect's dependency array empty so it provably runs once on mount and is
+      // never re-subscribed by a future store change.
+      const {
+        updateProgress,
+        markComplete,
+        markError,
+        markCancelled,
+        markPaused,
+        markResumed,
+        applyQueuePatch,
+        setQueueState,
+      } = useQueueStore.getState();
+
       const unlisteners = await Promise.all([
         onDownloadProgress((payload) => {
           if (!cancelled) updateProgress(payload);
@@ -82,6 +100,23 @@ export function useQueue() {
         unlistenersRef.current = unlisteners;
       } else {
         unlisteners.forEach((fn) => fn());
+        return;
+      }
+
+      // Load the persisted queue restored by the backend on startup.
+      // Listeners are registered first so no live event is missed.
+      try {
+        const queue = await getQueue();
+        if (cancelled) return;
+        setQueueState({
+          ...queue,
+          jobs: queue.jobs.map((j) => ({
+            ...j,
+            subtitleOptions: j.subtitleOptions ?? DEFAULT_SUBTITLE_OPTIONS,
+          })),
+        });
+      } catch (err) {
+        console.error('Failed to load persisted queue', err);
       }
     };
 
@@ -92,7 +127,9 @@ export function useQueue() {
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
-  }, [updateProgress, markComplete, markError, markCancelled, markPaused, markResumed, applyQueuePatch]);
+    // Empty deps: actions are read via getState() inside, so this effect has no
+    // reactive inputs and runs exactly once on mount.
+  }, []);
 
   return {
     jobs: useQueueStore((s) => s.jobs),

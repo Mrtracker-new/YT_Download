@@ -56,6 +56,11 @@ export function useDownload() {
           audioOnly: opts.audioOnly,
           subtitleOptions: opts.subtitleOptions,
           advanced,
+          // Pass metadata so the backend can persist it for queue restore.
+          title: videoInfo?.title,
+          thumbnail: videoInfo?.thumbnail,
+          uploader: videoInfo?.uploader,
+          duration: videoInfo?.duration,
         });
 
         // Optimistically add to UI queue

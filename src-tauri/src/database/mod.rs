@@ -1,2 +1,2 @@
 mod mod_db;
-pub use mod_db::Database;
+pub use mod_db::{Database, PersistedQueueJob};

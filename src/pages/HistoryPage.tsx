@@ -35,7 +35,7 @@ const HistoryPage: React.FC = () => {
   };
 
   const handleOpenFolder = async (filePath: string) => {
-    const dir = filePath.substring(0, filePath.lastIndexOf('\\'));
+    const dir = filePath.replace(/[\\/][^\\/]*$/, '');
     await openFolder(dir);
   };
 

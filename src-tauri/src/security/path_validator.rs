@@ -22,6 +22,39 @@ pub fn validate_path(path: &str, allowed_root: &str) -> Result<PathBuf> {
     Ok(canonical_path)
 }
 
+/// Validates a yt-dlp output filename template cannot escape the output directory.
+///
+/// The template is concatenated after `{output_dir}/` into a single `-o` argument,
+/// so shell/flag injection is not possible (no shell, single argv element). The real
+/// risk is path traversal: a template like `..\..\Windows\System32\x.%(ext)s` makes
+/// yt-dlp resolve the relative components and write outside the validated output dir.
+///
+/// Allows literal text, `%(field)s` fields, and `/` or `\` subdirectory separators.
+/// Rejects `..` components and absolute paths (leading separator or `X:` drive prefix).
+pub fn validate_filename_template(template: &str) -> Result<()> {
+    if template.trim().is_empty() {
+        return Err(anyhow!("Filename template cannot be empty"));
+    }
+
+    // Reject absolute paths: leading separator, or Windows drive prefix like `C:`.
+    let bytes = template.as_bytes();
+    if matches!(bytes.first(), Some(b'/') | Some(b'\\')) {
+        return Err(anyhow!("Filename template must be relative"));
+    }
+    if template.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return Err(anyhow!("Filename template must not contain a drive prefix"));
+    }
+
+    // Reject any `..` path component (escapes the output directory).
+    for component in template.split(['/', '\\']) {
+        if component == ".." {
+            return Err(anyhow!("Filename template must not contain '..'"));
+        }
+    }
+
+    Ok(())
+}
+
 /// Validates a download job ID is a valid UUID v4.
 /// Prevents injection via job ID.
 pub fn validate_job_id(job_id: &str) -> Result<()> {

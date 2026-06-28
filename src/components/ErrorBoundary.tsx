@@ -7,12 +7,24 @@ interface State {
   error: Error | null;
 }
 
+type Props = React.PropsWithChildren<{
+  /**
+   * When provided, this is rendered in place of the default full-screen recovery
+   * UI. Use it to scope a boundary to part of the tree (e.g. a single list item)
+   * so one failure doesn't take down the whole app.
+   */
+  fallback?: React.ReactNode;
+}>;
+
 /**
  * Production-quality error boundary that catches any render error in the tree
  * and shows a friendly recovery UI instead of a blank screen.
+ *
+ * Without `fallback` it renders the full-screen recovery view (top-level use).
+ * With `fallback` it renders that node instead, for localized boundaries.
  */
-export class ErrorBoundary extends React.Component<React.PropsWithChildren, State> {
-  constructor(props: React.PropsWithChildren) {
+export class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -33,6 +45,11 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Stat
 
   render() {
     if (this.state.hasError) {
+      // Localized boundary: render the caller-supplied fallback instead of the
+      // full-screen recovery UI.
+      if (this.props.fallback !== undefined) {
+        return this.props.fallback;
+      }
       return (
         <Box
           sx={{
