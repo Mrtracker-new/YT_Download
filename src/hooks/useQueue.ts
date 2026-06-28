@@ -10,9 +10,19 @@ import {
   onDownloadPaused,
   onDownloadResumed,
   onQueueUpdated,
+  getQueue,
   IS_TAURI,
   type UnlistenFn,
 } from '../services/tauriApi';
+import type { SubtitleOptions } from '../types/video';
+
+/** Backend get_queue omits per-download subtitle options; restored jobs use this default. */
+const DEFAULT_SUBTITLE_OPTIONS: SubtitleOptions = {
+  enabled: false,
+  language: 'en',
+  mode: 'embed',
+  includeAuto: false,
+};
 
 /**
  * Hook that subscribes to all Tauri download events and syncs them into Zustand.
@@ -38,6 +48,7 @@ export function useQueue() {
   const markPaused = useQueueStore((s) => s.markPaused);
   const markResumed = useQueueStore((s) => s.markResumed);
   const applyQueuePatch = useQueueStore((s) => s.applyQueuePatch);
+  const setQueueState = useQueueStore((s) => s.setQueueState);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
@@ -82,6 +93,23 @@ export function useQueue() {
         unlistenersRef.current = unlisteners;
       } else {
         unlisteners.forEach((fn) => fn());
+        return;
+      }
+
+      // Load the persisted queue restored by the backend on startup.
+      // Listeners are registered first so no live event is missed.
+      try {
+        const queue = await getQueue();
+        if (cancelled) return;
+        setQueueState({
+          ...queue,
+          jobs: queue.jobs.map((j) => ({
+            ...j,
+            subtitleOptions: j.subtitleOptions ?? DEFAULT_SUBTITLE_OPTIONS,
+          })),
+        });
+      } catch (err) {
+        console.error('Failed to load persisted queue', err);
       }
     };
 
@@ -92,7 +120,7 @@ export function useQueue() {
       unlistenersRef.current.forEach((fn) => fn());
       unlistenersRef.current = [];
     };
-  }, [updateProgress, markComplete, markError, markCancelled, markPaused, markResumed, applyQueuePatch]);
+  }, [updateProgress, markComplete, markError, markCancelled, markPaused, markResumed, applyQueuePatch, setQueueState]);
 
   return {
     jobs: useQueueStore((s) => s.jobs),

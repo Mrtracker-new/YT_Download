@@ -77,6 +77,11 @@ export interface DownloadOptions {
   subtitleOptions: SubtitleOptions;
   outputDir?: string;     // overrides settings if provided
   advanced: AdvancedOptions;
+  // Display metadata — persisted so a restored queue shows real titles/thumbnails.
+  title?: string;
+  thumbnail?: string;
+  uploader?: string;
+  duration?: number;
 }
 
 export interface QueueState {
