@@ -1,6 +1,35 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { DownloadJob, ProgressPayload, QueueState, QueuePatch } from '../types/download';
+import type {
+  DownloadJob,
+  DownloadStatus,
+  ProgressPayload,
+  QueueState,
+  QueuePatch,
+} from '../types/download';
+
+/**
+ * Status priority used to reconcile stale queue://updated patches against more
+ * recent optimistic updates. A patch may only move a job to a status of equal
+ * or higher priority — a lower-priority status is treated as a stale event and
+ * ignored (e.g. a late `downloading` patch must not clobber `markPaused`).
+ *
+ *   terminal (completed/failed/cancelled) > paused > active > queued
+ */
+const STATUS_RANK: Record<DownloadStatus, number> = {
+  queued: 0,
+  downloading: 1,
+  merging: 1,
+  converting: 1,
+  finalizing: 1,
+  paused: 2,
+  completed: 3,
+  failed: 3,
+  cancelled: 3,
+};
+
+/** Rank shared by the terminal statuses (completed/failed/cancelled). */
+const TERMINAL_RANK = 3;
 
 interface QueueStore {
   jobs: DownloadJob[];
@@ -158,8 +187,24 @@ export const useQueueStore = create<QueueStore>()(
           const existingIdx = state.jobs.findIndex((j) => j.jobId === incoming.jobId);
           if (existingIdx !== -1) {
             const existing = state.jobs[existingIdx];
-            // Only update if the backend status differs — prevents stale event clobbering
-            // a more recent optimistic update (e.g., paused event arriving after markPaused).
+            // Reconcile by status priority: a patch carrying a lower-priority
+            // status than the job already has is a stale event — drop it whole so
+            // it can't clobber a more recent optimistic update (e.g. a late
+            // `downloading` patch arriving after markPaused/markComplete).
+            //
+            // Terminal statuses (completed/failed/cancelled) are final: once a
+            // job reaches one, no patch may change it — not even to a different
+            // terminal status (e.g. a stale `cancelled` must not overwrite
+            // `completed`).
+            const existingRank = STATUS_RANK[existing.status];
+            const incomingRank = STATUS_RANK[incoming.status];
+            const existingIsTerminal = existingRank === TERMINAL_RANK;
+            if (
+              incomingRank < existingRank ||
+              (existingIsTerminal && incoming.status !== existing.status)
+            ) {
+              continue;
+            }
             existing.status = incoming.status;
             existing.progress = incoming.progress;
             existing.speed = incoming.speed ?? '';
