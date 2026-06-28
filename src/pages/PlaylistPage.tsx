@@ -23,7 +23,9 @@ const PlaylistPage: React.FC = () => {
   const [playlistInfo, setPlaylistInfo] = useState<PlaylistInfo | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Keyed by entry index, not id: some platforms return playlists with duplicate
+  // video ids, which would collapse in a Set<string> and break selection.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [audioOnly, setAudioOnly] = useState(false);
   const [quality, setQuality] = useState('720p');
   const [isQueuing, setIsQueuing] = useState(false);
@@ -42,7 +44,7 @@ const PlaylistPage: React.FC = () => {
       const info = await getPlaylistInfo(trimmed);
       setPlaylistInfo(info);
       // Select all by default
-      setSelected(new Set(info.entries.map((e) => e.id)));
+      setSelected(new Set(info.entries.map((_, i) => i)));
     } catch (err) {
       // Tauri commands return Err(String) as a raw string rejection, not an Error object
       const msg = typeof err === 'string'
@@ -54,11 +56,11 @@ const PlaylistPage: React.FC = () => {
     }
   };
 
-  const toggleItem = (id: string) => {
+  const toggleItem = (idx: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
       return next;
     });
   };
@@ -68,14 +70,14 @@ const PlaylistPage: React.FC = () => {
     if (selected.size === playlistInfo.entries.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(playlistInfo.entries.map((e) => e.id)));
+      setSelected(new Set(playlistInfo.entries.map((_, i) => i)));
     }
   };
 
   const handleQueueSelected = async () => {
     if (!playlistInfo || selected.size === 0) return;
     setIsQueuing(true);
-    const toQueue = playlistInfo.entries.filter((e) => selected.has(e.id));
+    const toQueue = playlistInfo.entries.filter((_, i) => selected.has(i));
     let queued = 0;
     for (const item of toQueue) {
       try {
@@ -247,24 +249,24 @@ const PlaylistPage: React.FC = () => {
               <Box display="flex" flexDirection="column" gap={0.75} maxHeight={400} overflow="auto"
                 sx={{ '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.1)', borderRadius: 2, '.dark-mode &': { bgcolor: 'rgba(255,255,255,0.1)' } } }}>
                 {playlistInfo.entries.map((item, idx) => (
-                  <Box key={item.id} display="flex" alignItems="center" gap={1.5} py={0.75}
+                  <Box key={idx} display="flex" alignItems="center" gap={1.5} py={0.75}
                     sx={{ borderRadius: '255px 15px 225px 15px/15px 225px 15px 255px', px: 0.5, cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0,0,0,0.05)', '.dark-mode &': { bgcolor: 'rgba(255,255,255,0.05)' } } }}
-                    onClick={() => toggleItem(item.id)}>
+                    onClick={() => toggleItem(idx)}>
                     <Checkbox
-                      checked={selected.has(item.id)} size="small"
+                      checked={selected.has(idx)} size="small"
                       sx={{ color: 'text.secondary', '&.Mui-checked': { color: 'primary.main' }, p: 0, flexShrink: 0 }}
-                      onClick={(e) => { e.stopPropagation(); toggleItem(item.id); }}
+                      onClick={(e) => { e.stopPropagation(); toggleItem(idx); }}
                     />
                     <Typography variant="caption" color="text.secondary" sx={{ width: 24, flexShrink: 0, textAlign: 'right', fontFamily: 'Patrick Hand', fontSize: '1rem' }}>
                       {idx + 1}
                     </Typography>
                     {item.thumbnail && (
                       <Box component="img" src={item.thumbnail} alt={item.title}
-                        sx={{ width: 48, height: 27, border: '2px solid', borderColor: 'text.primary', borderRadius: '2px', objectFit: 'cover', flexShrink: 0, opacity: selected.has(item.id) ? 1 : 0.4 }} />
+                        sx={{ width: 48, height: 27, border: '2px solid', borderColor: 'text.primary', borderRadius: '2px', objectFit: 'cover', flexShrink: 0, opacity: selected.has(idx) ? 1 : 0.4 }} />
                     )}
                     <Box flex={1} minWidth={0}>
                       <Typography variant="body1" fontSize="1rem" fontWeight={500}
-                        sx={{ opacity: selected.has(item.id) ? 1 : 0.5, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontFamily: 'Patrick Hand' }}>
+                        sx={{ opacity: selected.has(idx) ? 1 : 0.5, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontFamily: 'Patrick Hand' }}>
                         {item.title}
                       </Typography>
                       {item.duration && (
