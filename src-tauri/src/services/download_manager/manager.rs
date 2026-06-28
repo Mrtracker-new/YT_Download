@@ -481,24 +481,34 @@ impl DownloadManager {
     /// The manager sets status to Paused immediately for responsive UI feedback.
     /// The queue://updated event is emitted from the task cleanup path (after the
     /// process is confirmed dead) to avoid racing with progress events.
-    pub async fn pause_download(&mut self, job_id: &str, _app_handle: &AppHandle) -> Result<()> {
+    pub async fn pause_download(&mut self, job_id: &str, app_handle: &AppHandle) -> Result<()> {
         let job = match self.jobs.get_mut(job_id) {
             Some(j) => j,
             None => return Err(anyhow!("Job not found: {}", job_id)),
         };
 
-        if !self.active_handles.contains_key(job_id) {
-            return Err(anyhow!("Job {} is not currently active", job_id));
+        // Active download: signal the engine. It kills the process, preserves
+        // partial files, and emits download://paused after the process is dead.
+        if self.active_handles.contains_key(job_id) {
+            // Mark paused immediately (responsive UI)
+            job.status = JobStatus::Paused;
+            let _ = job.control_tx.send(ControlSignal::Pause);
+            return Ok(());
         }
 
-        // Mark paused immediately (responsive UI)
-        job.status = JobStatus::Paused;
+        // No active task. A Queued job can still be paused — this is the resume
+        // window case: resume_download set the job Queued and removed its handle,
+        // so there is nothing in active_handles yet. Flip it to Paused directly so
+        // the in-flight resume task's status re-check skips advance_queue and the
+        // job does not start anyway.
+        if job.status == JobStatus::Queued {
+            job.status = JobStatus::Paused;
+            self.persist_job(job_id).await;
+            self.emit_queue_updated(app_handle);
+            return Ok(());
+        }
 
-        // Signal the download engine — it will kill the process and emit download://paused
-        // AFTER the process is confirmed dead (no race with progress events)
-        let _ = job.control_tx.send(ControlSignal::Pause);
-
-        Ok(())
+        Err(anyhow!("Job {} is not currently active", job_id))
     }
 
     // ── Resume ────────────────────────────────────────────────────────────────
@@ -572,6 +582,22 @@ impl DownloadManager {
 
             // Now advance the queue (old slot is free)
             let mut mgr = self_arc.lock().await;
+            // Re-check status under the lock: a pause/cancel may have landed in the
+            // window between resume_download releasing the lock and this task
+            // reacquiring it. If the job is no longer Queued, the user changed their
+            // mind — do not start it.
+            let still_queued = mgr
+                .jobs
+                .get(&jid)
+                .is_some_and(|j| j.status == JobStatus::Queued);
+            if !still_queued {
+                log::info!(
+                    "Job {}: status changed during resume window — skipping advance",
+                    jid
+                );
+                mgr.emit_queue_updated(&app_handle);
+                return;
+            }
             mgr.advance_queue(app_handle.clone(), db.clone(), self_arc.clone());
             mgr.emit_queue_updated(&app_handle);
         });
