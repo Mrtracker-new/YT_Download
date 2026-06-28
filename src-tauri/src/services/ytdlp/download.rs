@@ -90,9 +90,19 @@ pub struct DownloadArgs {
 }
 
 impl DownloadArgs {
-    /// True when a cookies.txt file is configured.
+    /// True when a cookies.txt file is configured AND present on disk.
+    /// A configured-but-missing path is treated as "no file" so we fall back to
+    /// browser cookies instead of handing yt-dlp a bad --cookies path (which
+    /// fails cryptically).
     fn has_cookie_file(&self) -> bool {
-        !self.cookie_file.trim().is_empty()
+        let p = self.cookie_file.trim();
+        !p.is_empty() && std::path::Path::new(p).is_file()
+    }
+
+    /// True when a cookies.txt path is configured but does not exist on disk.
+    fn cookie_file_missing(&self) -> bool {
+        let p = self.cookie_file.trim();
+        !p.is_empty() && !std::path::Path::new(p).is_file()
     }
 
     /// True when a browser is configured for cookie extraction.
@@ -291,6 +301,12 @@ pub async fn run_download(
     // ── Cookies (file takes precedence, applies to every site) ─────────────────
     // A cookies.txt file is the bulletproof path: works for any site and sidesteps
     // Windows browser-cookie decryption failures (Chrome/Edge App-Bound Encryption).
+    if args.cookie_file_missing() {
+        log::warn!(
+            "Configured cookie file does not exist — ignoring it: {}",
+            args.cookie_file.trim()
+        );
+    }
     if args.has_cookie_file() {
         cmd_args.extend(["--cookies".to_string(), args.cookie_file.trim().to_string()]);
     }
